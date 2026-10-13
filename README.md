@@ -22,4 +22,6 @@ For a Google Cloud preview with an owned `.xyz` domain, see [deployment instruct
 
 Repository-local Codex guidance from Vercel is installed in `.agents/skills/vercel-composition-patterns` and `.agents/skills/vercel-react-best-practices`, with sources pinned in `skills-lock.json`. These are development instructions, not application runtime dependencies. Apply the relevant provider, persistence, and React guidance while preserving the product invariants below.
 
+Analysis pages show the fit recommendation, eligibility conditions, and up to three verified strengths and priority evidence gaps initially. Additional strengths/gaps and the full **View detailed match** breakdown are collapsed by default. Saved assessment evidence sources appear inside the same disclosure. Expanding details reveals every reviewed requirement and its provenance; display limits do not change scores or stored records.
+
 Product invariants and contribution guidance are recorded in `AGENTS.md`. Keep candidate facts grounded in confirmed evidence, retain original metrics verbatim, and maintain separate Profile and Application state.

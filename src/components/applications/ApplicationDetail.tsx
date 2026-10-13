@@ -137,29 +137,29 @@ export function ApplicationSnapshotView({ snapshot }: { snapshot: ApplicationAna
 
       <MatchSummary analysis={analysis} />
       <StrengthsSection requirements={analysis.requirements} />
-      <RequirementsBreakdown requirements={analysis.requirements} />
-
-      <section aria-labelledby="saved-evidence-heading" className="rounded-xl border border-line bg-surface p-5 sm:p-6">
-        <h2 id="saved-evidence-heading" className="text-heading font-semibold text-ink">Evidence saved with this analysis</h2>
-        <p className="mt-1 text-meta text-ink-muted">These excerpts were verified in your Career Profile when this analysis was saved.</p>
-        {snapshot.evidence.length > 0 ? (
-          <ul className="mt-4 space-y-3">
-            {snapshot.evidence.map((item, index) => (
-              <li key={`${item.link.recordType}:${item.link.recordId}:${item.link.claimId ?? "record"}:${index}`} className="rounded-lg border border-line bg-inset/50 p-3">
-                <p className="text-body font-semibold text-ink">
-                  {item.recordTitle}{item.sourceOrganization ? <span className="font-normal text-ink-secondary"> · {item.sourceOrganization}</span> : null}
-                </p>
-                <p className="mt-2 text-body leading-relaxed text-ink-secondary">{item.excerpt}</p>
-                <p className="mt-2 text-micro text-ink-muted">
-                  {sourceLabels[item.source]} · Source updated <time dateTime={item.recordUpdatedAt}>{savedDate(item.recordUpdatedAt)}</time>
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 text-body text-ink-secondary">No verified Profile excerpts supported this analysis when it was saved.</p>
-        )}
-      </section>
+      <RequirementsBreakdown requirements={analysis.requirements}>
+        <section aria-labelledby="saved-evidence-heading" className="rounded-xl border border-line bg-surface p-5 sm:p-6">
+          <h2 id="saved-evidence-heading" className="text-heading font-semibold text-ink">Evidence saved with this analysis</h2>
+          <p className="mt-1 text-meta text-ink-muted">These excerpts were verified in your Career Profile when this analysis was saved.</p>
+          {snapshot.evidence.length > 0 ? (
+            <ul className="mt-4 space-y-3">
+              {snapshot.evidence.map((item, index) => (
+                <li key={`${item.link.recordType}:${item.link.recordId}:${item.link.claimId ?? "record"}:${index}`} className="rounded-lg border border-line bg-inset/50 p-3">
+                  <p className="text-body font-semibold text-ink">
+                    {item.recordTitle}{item.sourceOrganization ? <span className="font-normal text-ink-secondary"> · {item.sourceOrganization}</span> : null}
+                  </p>
+                  <p className="mt-2 text-body leading-relaxed text-ink-secondary">{item.excerpt}</p>
+                  <p className="mt-2 text-micro text-ink-muted">
+                    {sourceLabels[item.source]} · Source updated <time dateTime={item.recordUpdatedAt}>{savedDate(item.recordUpdatedAt)}</time>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 text-body text-ink-secondary">No verified Profile excerpts supported this analysis when it was saved.</p>
+          )}
+        </section>
+      </RequirementsBreakdown>
     </div>
   );
 }

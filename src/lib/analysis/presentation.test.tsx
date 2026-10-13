@@ -255,3 +255,55 @@ test("gap explanations describe linked support without inventing a clinical cand
   assert.match(html, /linked evidence partly supports this requirement/);
   assert.doesNotMatch(html, /could not find|Related academic work|commercial device trial exposure|No evidence found/);
 });
+
+test("detailed match starts closed while retaining all requirements and composed evidence sources", () => {
+  const requirements = [requirement([]), { ...requirement([]), id: "second", label: "Second requirement" }];
+  const html = renderToStaticMarkup(<RequirementsBreakdown requirements={requirements}>
+    <p>Archived source provenance</p>
+  </RequirementsBreakdown>);
+  assert.match(html, /View detailed match/);
+  assert.match(html, />2 requirements</);
+  assert.match(html, /<details class=/);
+  assert.doesNotMatch(html, /<details[^>]*\sopen(?:=|\s|>)/);
+  assert.ok(html.indexOf("<summary") < html.indexOf("Second requirement"));
+  assert.ok(html.indexOf("Archived source provenance") < html.indexOf("</details>"));
+  assert.deepEqual(requirements.map((item) => item.id), ["core-1", "second"]);
+});
+
+test("strength overview shows three verified proof points and preserves the remainder in closed details", () => {
+  const requirements = Array.from({ length: 5 }, (_, index) => ({
+    ...requirement([evidence(`proof-${index}`, "verified")]), id: `core-${index}`, label: `Strength ${index}`,
+  }));
+  const html = renderToStaticMarkup(<StrengthsSection requirements={requirements} />);
+  const overview = html.slice(0, html.indexOf("<details"));
+  assert.match(overview, /Strength 0/);
+  assert.match(overview, /Strength 2/);
+  assert.doesNotMatch(overview, /Strength 3|Strength 4/);
+  assert.match(html, /View all strengths/);
+  assert.equal((html.match(/Strength 4/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /<details[^>]*\sopen(?:=|\s|>)/);
+  assert.doesNotMatch(renderToStaticMarkup(<StrengthsSection requirements={requirements.slice(0, 3)} />), /View all strengths/);
+});
+
+test("gap overview prioritises core uncertainty without changing source order or hiding eligibility", () => {
+  const requirements = [
+    { ...requirement([]), id: "preferred", label: "Preferred gap", importance: "preferred" as const, evidenceStrength: "none" as const },
+    { ...requirement([]), id: "partial", label: "Core adjacent gap", evidenceStrength: "partial" as const },
+    { ...requirement([]), id: "pending", label: "Core pending gap", evidenceStrength: "needs_confirmation" as const, rationale: "Unverified candidate statement" },
+    { ...requirement([]), id: "missing", label: "Core unlinked gap", evidenceStrength: "none" as const },
+    { ...requirement([]), id: "context", label: "Context gap", importance: "contextual" as const, evidenceStrength: "none" as const },
+  ];
+  const before = JSON.stringify(requirements);
+  const issues = Array.from({ length: 5 }, (_, index) => ({ ...critical("needs_confirmation"), id: `gate-${index}`, label: `Eligibility ${index}` }));
+  const html = renderToStaticMarkup(<GapsSection requirements={requirements} criticalIssues={issues} />);
+  const overview = html.slice(0, html.indexOf("<details"));
+  assert.match(overview, /Core pending gap/);
+  assert.match(overview, /Core unlinked gap/);
+  assert.match(overview, /Core adjacent gap/);
+  assert.doesNotMatch(overview, /Preferred gap|Context gap/);
+  assert.match(html, /View all evidence gaps/);
+  assert.match(html, /Needs verification/);
+  assert.doesNotMatch(html, /Unverified candidate statement/);
+  for (const issue of issues) assert.ok(html.includes(issue.label));
+  assert.equal(JSON.stringify(requirements), before);
+});

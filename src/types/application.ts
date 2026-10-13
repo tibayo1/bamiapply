@@ -1,5 +1,6 @@
 import type { JobAnalysis, JobPosting } from "./analysis";
 import type { EvidenceLink, ProfileSource, VerificationStatus, WorkAuthorization } from "./profile";
+import type { CVVersion } from "./cv";
 
 /**
  * Core TypeScript types for the Bámi Apply application domain.
@@ -109,6 +110,8 @@ export interface ApplicationRecord extends Application {
   createdAt: string;
   snapshots: ApplicationAnalysisSnapshot[];
   statusHistory: ApplicationStatusEvent[];
+  /** Immutable prepared documents; absent only on records saved before CV support. */
+  cvVersions?: CVVersion[];
   skipReason?: string;
 }
 

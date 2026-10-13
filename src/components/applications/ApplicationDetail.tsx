@@ -257,7 +257,14 @@ function SavedApplicationDetail({ application, profile, canUseProfile }: {
           <section aria-labelledby="preparation-heading" className="rounded-xl border border-line bg-surface p-5 sm:p-6">
             <h2 id="preparation-heading" className="text-heading font-semibold text-ink">Preparation</h2>
             <ApplicationProgress className="mt-3 gap-x-5" cvStatus={application.cvStatus} coverLetterStatus={application.coverLetterStatus} questionsCompleted={application.questionsCompleted} questionsTotal={application.questionsTotal} />
-            <p className="mt-3 text-meta text-ink-muted">Document generation is not available yet. Changing the application status does not create a CV, cover letter or answers.</p>
+            <p className="mt-3 text-meta text-ink-secondary">Choose verified Career Profile evidence, preview a tailored CV, and keep saved versions for this role.</p>
+            <div className="mt-4 flex flex-wrap items-center gap-4">
+              <Link href={`/applications/${encodeURIComponent(application.id)}/cv`} className={buttonVariants({ variant: "primary" })}>
+                {application.cvVersions?.length ? "Open CV builder" : "Build tailored CV"}
+              </Link>
+              {application.cvVersions?.length ? <span className="text-meta text-ink-muted">{application.cvVersions.length} saved {application.cvVersions.length === 1 ? "version" : "versions"}</span> : null}
+            </div>
+            <p className="mt-3 text-meta text-ink-muted">Cover letters and application answers are coming in a later stage. Your application status is tracked separately.</p>
           </section>
         </div>
 

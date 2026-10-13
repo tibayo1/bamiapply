@@ -1,0 +1,13 @@
+# Tailored CVs
+
+Open **Applications**, choose a saved role, then select **Build tailored CV**. The builder suggests verified Profile evidence already linked to the role and includes verified education. If no evidence is linked to the role, it starts with verified Profile facts for you to narrow down. Choose the facts and skills to include, inspect the preview, and save a draft. After checking the document, confirm that its facts are yours and accurate and save a reviewed version.
+
+The current Profile includes demonstration data for new users. Replace any examples with your own facts before reviewing a CV. Records and individual claims must both be verified. Skills need verified supporting evidence. Imported or suggested facts awaiting confirmation and analysis what-if overrides cannot become CV claims. Correct wording, dates, names and metrics in Career Profile; the CV builder selects facts without inventing or rewriting them.
+
+A saved reviewed version can be downloaded as plain text or printed with **Print / Save as PDF**. Choose **Save as PDF** in the browser's print dialog; PDF files are produced by the browser. Exports contain candidate facts, without fit scores, employer requirements or internal evidence annotations. They require no API key or paid AI service.
+
+Every save appends an immutable version under its application. Versions capture their selected verified sources, stable record and claim IDs, source metadata, rendered content, Profile revision, and review status. Reloading resumes saved versions. Preparing a CV does not modify the Profile, refresh the saved assessment, change the application's lifecycle, resolve eligibility gates or submit anything to an employer.
+
+If Career Profile changes, earlier CVs remain available to inspect. Create a new version from the current Profile and review it before exporting. Missing or unconfirmed evidence must be corrected in Profile. The Documents page groups saved versions by role; draft and reviewed states are shown separately.
+
+Documents are browser-local, alongside Applications. The Applications backup includes CV versions and their evidence archives. Application storage version 2 accepts existing version-1 applications without writing during load. The first subsequent successful command saves the updated format. Corrupt or unsupported data, storage failures, and conflicting tab writes pause saving and preserve previous data. Export backups before clearing browser data or changing website origin. Account sync, backup restoration, DOCX export and submission-specific document tracking remain future work.

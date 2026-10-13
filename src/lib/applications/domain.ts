@@ -9,6 +9,10 @@ import { getWorkAuthorizationForRegions, workAuthorizationToEligibility } from "
 import { buildJobAnalysis } from "@/lib/analysis/mock-engine";
 import { calculateFit, evaluateCriticalRequirements } from "@/lib/analysis/scoring";
 import { determineRecommendation } from "@/lib/analysis/recommendation";
+import { normalizeCVVersions } from "@/lib/cv/domain";
+import { getProfileRevision } from "@/lib/profile/revision";
+
+export { getProfileRevision } from "@/lib/profile/revision";
 
 export const APPLICATION_STATUSES: readonly ApplicationStatus[] = [
   "Saved", "Preparing", "Ready to Apply", "Applied", "Assessment", "Interview", "Rejected", "Offer", "Withdrawn", "Skipped",
@@ -82,18 +86,6 @@ export function normalizeJobPosting(input: unknown): JobPosting | null {
   return { id: input.id, company: input.company, role: input.role, location: input.location,
     ...(input.sourceUrl === undefined ? {} : { sourceUrl: input.sourceUrl as string }),
     ...(input.rawDescription === undefined ? {} : { rawDescription: input.rawDescription as string }), requirements };
-}
-
-/** A content fingerprint for detecting stale assessments, not an authentication token. */
-export function getProfileRevision(profile: CareerProfile): string {
-  const serialized = JSON.stringify(normalizeCareerProfile(profile) ?? profile);
-  let first = 2166136261;
-  let second = 0x9e3779b9;
-  for (let i = 0; i < serialized.length; i++) {
-    first = Math.imul(first ^ serialized.charCodeAt(i), 16777619);
-    second = Math.imul(second ^ serialized.charCodeAt(i), 2246822519);
-  }
-  return `${profile.id}:${profile.updatedAt}:${(first >>> 0).toString(16)}${(second >>> 0).toString(16)}`;
 }
 
 export function getLatestSnapshot(record: ApplicationRecord): ApplicationAnalysisSnapshot {
@@ -301,6 +293,15 @@ export function normalizeApplications(input: unknown): ApplicationRecord[] | nul
     }
     const last = item.statusHistory[item.statusHistory.length - 1];
     if (last.status !== item.status || (item.status === "Skipped" ? item.skipReason !== last.reason : item.skipReason !== undefined)) return null;
+    const cvVersions = item.cvVersions === undefined ? [] : normalizeCVVersions(item.cvVersions, {
+      id: item.id, profileId: item.profileId, job, company: job.company, role: job.role,
+    });
+    if (!cvVersions) return null;
+    const latestCV = cvVersions[cvVersions.length - 1];
+    const expectedCVStatus = latestCV ? latestCV.status === "reviewed" ? "Complete" : "In progress" : "Not started";
+    if (item.cvStatus !== expectedCVStatus || cvVersions.some((version) =>
+      Date.parse(version.createdAt) < Date.parse(item.createdAt as string)
+      || Date.parse(version.createdAt) > Date.parse(item.updatedAt as string))) return null;
     ids.add(item.id); identities.add(identity);
     records.push(clone(item) as unknown as ApplicationRecord);
   }

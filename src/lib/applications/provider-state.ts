@@ -1,6 +1,8 @@
 import type { JobPosting } from "@/types/analysis";
 import type { ApplicationRecord, ApplicationStatus } from "@/types/application";
 import type { CareerProfile } from "@/types/profile";
+import type { CVSelection, CVVersion } from "@/types/cv";
+import { createCVVersion } from "@/lib/cv/domain";
 import { changeApplicationStatus, createApplicationRecord, refreshApplicationRecord } from "./domain";
 import {
   APPLICATIONS_CONFLICT_MESSAGE,
@@ -64,9 +66,11 @@ function applySaveStatus(record: ApplicationRecord, options: SaveApplicationOpti
 export function createApplicationsStore({
   storage,
   createId = () => `app-${crypto.randomUUID()}`,
+  createCVId = () => `cv-${crypto.randomUUID()}`,
 }: {
   storage?: ApplicationsStorageLike;
   createId?: () => string;
+  createCVId?: () => string;
 } = {}) {
   const initialState: ApplicationsProviderState = freezeState({
     applications: [],
@@ -144,6 +148,27 @@ export function createApplicationsStore({
     refreshAnalysis(id: string, profile: CareerProfile): ApplicationCommandResult {
       const result = execute({ type: "refresh", id, profile });
       return { error: result.error };
+    },
+    saveCVVersion(id: string, profile: CareerProfile, selection: CVSelection, status: CVVersion["status"]): SaveApplicationResult {
+      if (!state.isHydrated) return { id: null, error: "Your applications are still loading. Please try again shortly." };
+      if (!state.canPersist) return { id: null, error: state.persistenceIssue ?? "Saving applications is unavailable in this browser." };
+      const application = state.applications.find((item) => item.id === id);
+      if (!application) return { id: null, error: "This application could not be found." };
+      const version = createCVVersion({ id: createCVId(), application, profile, selection, status });
+      if (!version || Date.parse(version.createdAt) < Date.parse(application.updatedAt)
+        || application.cvVersions?.some((item) => item.id === version.id)) {
+        return { id: null, error: "This CV could not be saved. Use the application's Career Profile and select only currently verified evidence." };
+      }
+      const updated: ApplicationRecord = {
+        ...application,
+        cvVersions: [...(application.cvVersions ?? []), version],
+        cvStatus: version.status === "reviewed" ? "Complete" : "In progress",
+        updatedAt: version.createdAt,
+      };
+      // Document history and progress share one checked write. A quota error
+      // must never leave a Complete badge for a document that was not saved.
+      const result = commit(state.applications.map((item) => item.id === id ? updated : item));
+      return { id: result.error ? null : version.id, error: result.error };
     },
     getApplicationForJob(jobId: string, profileId: string): ApplicationRecord | undefined {
       return state.applications.find((item) => item.job.id === jobId && item.profileId === profileId);

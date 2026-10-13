@@ -2,7 +2,7 @@ import type { ApplicationRecord } from "@/types/application";
 import { normalizeApplications } from "./domain";
 
 export const APPLICATIONS_STORAGE_KEY = "bami.applications";
-export const CURRENT_APPLICATIONS_VERSION = 1;
+export const CURRENT_APPLICATIONS_VERSION = 2;
 
 export interface ApplicationsStorageLike {
   getItem(key: string): string | null;
@@ -53,10 +53,20 @@ function parseStoredApplications(raw: string): {
     };
   }
   const payload = parsed as Record<string, unknown>;
-  if (payload.version !== CURRENT_APPLICATIONS_VERSION) {
+  if (![1, CURRENT_APPLICATIONS_VERSION].includes(payload.version as number)
+    || Object.keys(payload).some((key) => !["version", "applications"].includes(key))) {
     return {
       applications: null,
       issue: "Your saved applications use an unsupported version. The original data is preserved and saving is paused.",
+    };
+  }
+  // Legacy data predates prepared documents. Never interpret a version-1
+  // document payload as trusted evidence, or rewrite bytes during hydration.
+  if (payload.version === 1 && Array.isArray(payload.applications)
+    && payload.applications.some((item) => typeof item === "object" && item !== null && "cvVersions" in item)) {
+    return {
+      applications: null,
+      issue: "Your saved applications contain document data in an unsupported format. The original data is preserved and saving is paused.",
     };
   }
   const applications = normalizeApplications(payload.applications);

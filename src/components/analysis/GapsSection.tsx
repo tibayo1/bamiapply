@@ -50,7 +50,7 @@ export function GapsSection({
           <div className="flex items-center justify-between pb-3 border-b border-line">
             <h3 className="text-body font-semibold text-ink flex items-center gap-2">
               <Minus className="h-4 w-4 text-warning" />
-              Manageable gaps
+              Evidence to review
             </h3>
             <span className="font-mono text-micro text-ink-muted">
               {manageableGaps.length} items
@@ -58,7 +58,7 @@ export function GapsSection({
           </div>
 
           <p className="mt-2.5 text-meta text-ink-muted">
-            These are useful preferred or adjacent skills that do not disqualify you. Frame these through related experience.
+            These requirements have no linked verified evidence or only related evidence. Review the support for core requirements first; this list does not prove you lack the experience.
           </p>
 
           <ul className="mt-4 space-y-3">
@@ -77,15 +77,15 @@ export function GapsSection({
                     </span>
                   </div>
                   <span className="inline-flex rounded bg-warning-subtle px-2 py-0.5 font-mono text-[0.6875rem] font-semibold text-warning shrink-0">
-                    {req.evidenceStrength === "none" ? "No evidence found" : "Partial match"}
+                    {req.evidenceStrength === "none" ? "Not linked" : "Related evidence"}
                   </span>
                 </div>
 
                 <p className="mt-2 text-meta text-ink-secondary leading-snug">
                   {req.rationale ||
                     (req.evidenceStrength === "none"
-                      ? `Bámi could not find ${req.label} in your Career Profile.`
-                      : "Related academic work found, but lacks commercial device trial exposure.")}
+                      ? "No verified Profile evidence is linked to this requirement. Link a confirmed record or claim that supports it."
+                      : "The linked evidence partly supports this requirement. Review what it demonstrates and which parts remain unsupported.")}
                 </p>
 
                 {onAddExperience && (
@@ -130,11 +130,11 @@ export function GapsSection({
                       {issue.label}
                     </h4>
                     <span className="font-mono text-micro text-ink-muted uppercase">
-                      {issue.category} · Non-negotiable
+                      {issue.category} · {issue.isHardBlocker ? "Non-negotiable" : "Eligibility condition"}
                     </span>
                   </div>
                   <span className="inline-flex rounded bg-danger text-white px-2 py-0.5 font-mono text-[0.6875rem] font-semibold shrink-0">
-                    {issue.status === "unmet" ? "Hard blocker" : "Needs confirmation"}
+                    {issue.status === "unmet" ? issue.isHardBlocker ? "Hard blocker" : "Unmet" : "Needs confirmation"}
                   </span>
                 </div>
 

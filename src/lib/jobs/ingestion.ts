@@ -1,47 +1,15 @@
 import type { CareerProfile, EvidenceLink } from "@/types/profile";
 import type { JobPosting, JobRequirementSpec } from "@/types/analysis";
-import type { JobDraftInput, JobRequirementDraft } from "@/types/job";
+import type { JobDraftInput } from "@/types/job";
 import { normalizeCareerProfile } from "@/lib/profile/validation";
 import { resolveEvidenceLink, linkKey, type ResolvedEvidence } from "@/lib/profile/evidence";
 import { normalizeJobPosting } from "@/lib/applications/domain";
 
-export const MAX_JOB_DESCRIPTION_LENGTH = 30000;
-export const MAX_JOB_REQUIREMENTS = 30;
+import { MAX_JOB_DESCRIPTION_LENGTH, MAX_JOB_REQUIREMENTS } from "./requirements";
+export { createRequirementDraft, suggestJobRequirements, suggestJobRequirementsDetailed, MAX_JOB_DESCRIPTION_LENGTH, MAX_JOB_REQUIREMENTS } from "./requirements";
+
 const IMPORTANCES = ["critical", "core", "preferred", "contextual"];
 const CATEGORIES = ["education", "experience", "skill", "industry", "language", "location", "work_authorization", "certification", "license", "seniority", "other"];
-
-export function createRequirementDraft(id = `requirement-${crypto.randomUUID()}`): JobRequirementDraft {
-  return { id, label: "", sourceText: "", importance: "core", category: "other", profileMatches: [],
-    isHardBlocker: false, acceptedRegions: "", sponsorship: "unknown" };
-}
-
-/** Suggestions come only from employer text; every selection requires review. */
-export function suggestJobRequirements(description: string): JobRequirementDraft[] {
-  if (typeof description !== "string" || description.length > MAX_JOB_DESCRIPTION_LENGTH) return [];
-  const quotes = description.split(/\r?\n|(?<=[.!?])\s+(?=[A-Z])/).map((line) => line.trim().replace(/^(?:[-*•]\s+|\d+[.)]\s+)/, ""))
-    .filter((line) => line.length >= 12 && !/^(?:requirements|qualifications|responsibilities|benefits|about us|how to apply|what we offer)\s*:?\s*$/i.test(line));
-  return [...new Set(quotes)].slice(0, MAX_JOB_REQUIREMENTS).map((sourceText, index) => {
-    const draft = createRequirementDraft(`requirement-${index + 1}`);
-    draft.sourceText = sourceText;
-    draft.label = sourceText.length > 160 ? `${sourceText.slice(0, 157)}…` : sourceText;
-    const preferred = /\b(preferred|desirable|nice to have|bonus|advantage)\b/i.test(sourceText);
-    draft.importance = preferred ? "preferred" : "core";
-    if (/\b(work authori[sz]ation|right to work|visa|sponsorship|work permit|eligible to work)\b/i.test(sourceText)) draft.category = "work_authorization";
-    else if (/\b(licen[sc]e|licen[sc]ed|registration)\b/i.test(sourceText)) draft.category = "license";
-    else if (/\b(degree|bachelor|master|phd|doctorate|diploma)\b/i.test(sourceText)) draft.category = "education";
-    else if (/\b(certification|certified)\b/i.test(sourceText)) draft.category = "certification";
-    else if (/\b(fluent|fluency|language|english|german|french)\b/i.test(sourceText)) draft.category = "language";
-    else if (/\b(years?|experience|design|conduct|manage|lead|develop)\b/i.test(sourceText)) draft.category = "experience";
-    else if (/\b(onsite|on-site|remote|hybrid|relocat|location)\b/i.test(sourceText)) draft.category = "location";
-    else draft.category = "skill";
-    if (!preferred && ["work_authorization", "license"].includes(draft.category)
-      && /\b(must|required|mandatory|eligible|no sponsorship|cannot sponsor)\b/i.test(sourceText)) {
-      draft.importance = "critical";
-      draft.isHardBlocker = true;
-    }
-    return draft;
-  });
-}
 
 /** Verified records/claims are the only choices for explicit requirement links. */
 export function getJobEvidenceOptions(profile: CareerProfile): ResolvedEvidence[] {

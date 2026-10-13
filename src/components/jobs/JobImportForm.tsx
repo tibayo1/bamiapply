@@ -5,24 +5,29 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useJobs } from "@/lib/jobs/context";
-import { createRequirementDraft, getJobEvidenceOptions, suggestJobRequirements, MAX_JOB_DESCRIPTION_LENGTH, MAX_JOB_REQUIREMENTS } from "@/lib/jobs/ingestion";
+import { createRequirementDraft, getJobEvidenceOptions, suggestJobRequirementsDetailed, MAX_JOB_DESCRIPTION_LENGTH, MAX_JOB_REQUIREMENTS } from "@/lib/jobs/ingestion";
 import { useProfile } from "@/lib/profile/context";
 import type { JobDraftInput, JobRequirementDraft } from "@/types/job";
+import type { JobPosting } from "@/types/analysis";
 import { JobRequirementEditor, jobFieldClass } from "./JobRequirementEditor";
 
 const EMPTY_INPUT: JobDraftInput = { company: "", role: "", location: "", sourceUrl: "", rawDescription: "", requirements: [] };
 const labelClass = "block text-meta font-medium text-ink";
 
 /** A reviewed job starts here. Persistence and final validation belong to JobsProvider. */
-export function JobImportForm() {
+export function JobImportForm({ sourceJob }: { sourceJob?: JobPosting }) {
   const router = useRouter();
   const prefix = useId();
   const { profile, isHydrated: profileHydrated, canPersist: profileCanPersist } = useProfile();
   const jobs = useJobs();
-  const [input, setInput] = useState<JobDraftInput>(EMPTY_INPUT);
+  const [input, setInput] = useState<JobDraftInput>(() => sourceJob ? {
+    company: sourceJob.company, role: sourceJob.role, location: sourceJob.location,
+    sourceUrl: sourceJob.sourceUrl ?? "", rawDescription: sourceJob.rawDescription ?? "", requirements: [],
+  } : EMPTY_INPUT);
   const [step, setStep] = useState<"details" | "requirements">("details");
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [omittedCount, setOmittedCount] = useState(0);
   const ready = profileHydrated && jobs.isHydrated;
   const canSave = ready && profileCanPersist && jobs.canPersist;
   const evidenceOptions = profileHydrated ? getJobEvidenceOptions(profile) : [];
@@ -51,8 +56,9 @@ export function JobImportForm() {
     }
     // Returning to the source never silently replaces manually reviewed requirements.
     if (input.requirements.length === 0) {
-      const suggestions = suggestJobRequirements(input.rawDescription);
-      setInput((current) => ({ ...current, requirements: suggestions.length ? suggestions : [createRequirementDraft()] }));
+      const suggestions = suggestJobRequirementsDetailed(input.rawDescription);
+      setOmittedCount(suggestions.omittedCount);
+      setInput((current) => ({ ...current, requirements: suggestions.requirements.length ? suggestions.requirements : [createRequirementDraft()] }));
     }
     setReviewConfirmed(false);
     setError(null);
@@ -79,6 +85,7 @@ export function JobImportForm() {
 
   return (
     <div className="mt-5">
+      {sourceJob ? <p className="mb-4 text-meta text-ink-secondary">You are creating a new review of this posting. Previously saved jobs and application analyses stay unchanged.</p> : null}
       {!ready ? <p role="status" className="text-meta text-ink-muted">Loading your Career Profile and reviewed jobs…</p> : null}
       {ready && !canSave ? <p role="status" className="mb-4 rounded-md border border-warning-line bg-warning-subtle p-3 text-meta text-warning">Saving is paused while your workspace storage needs attention. Your job draft remains on this page.</p> : null}
       {error ? <p role="alert" className="mb-4 rounded-md border border-danger-line bg-danger-subtle p-3 text-meta text-danger">{error}</p> : null}
@@ -128,8 +135,10 @@ export function JobImportForm() {
               </div>
               <Button variant="secondary" onClick={() => { setStep("details"); setReviewConfirmed(false); setError(null); }}>Edit job details</Button>
             </div>
-            <p className="mt-4 text-body text-ink-secondary">Review these suggestions against the original posting. Remove unrelated lines, add missing requirements, and choose verified evidence from your Career Profile. No evidence is linked automatically.</p>
+            <p className="mt-4 text-body text-ink-secondary">Review the suggested capabilities and qualifications against the original posting. Headings, company descriptions and benefits are excluded. Check the importance and link verified Career Profile evidence that demonstrates each requirement.</p>
+            <p className="mt-2 text-meta text-ink-muted">Evidence is linked by you during review. An unlinked requirement means the match has not been established; it does not mean you lack the experience.</p>
             <p className="mt-2 text-meta text-ink-muted">Include at least one core requirement. Keep non-negotiable eligibility conditions as critical gates. Suggestions come from the posting&apos;s text and may need correction.</p>
+            {omittedCount > 0 ? <p role="status" className="mt-3 rounded-md border border-warning-line bg-warning-subtle p-3 text-meta text-warning">This posting produced more than 30 suggestions. {omittedCount} are not shown; eligibility gates were prioritised. Check the full posting and replace lower-priority items with any missing essential requirements before continuing.</p> : null}
             <details className="mt-4 rounded-md border border-line bg-inset p-3">
               <summary className="cursor-pointer text-meta font-medium text-ink">View original job description</summary>
               <p className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-meta text-ink-secondary">{input.rawDescription}</p>

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { buttonVariants } from "@/components/ui/Button";
+import { Button, buttonVariants } from "@/components/ui/Button";
 import { JobImportForm } from "@/components/jobs/JobImportForm";
 import { useJobs } from "@/lib/jobs/context";
 import { useProfile } from "@/lib/profile/context";
@@ -11,9 +12,11 @@ import { useProfile } from "@/lib/profile/context";
 export function JobInput() {
   const { profile, isHydrated: profileHydrated } = useProfile();
   const { jobs, isHydrated: jobsHydrated } = useJobs();
+  const [reviewJobId, setReviewJobId] = useState<string | null>(null);
   const reviewedJobs = profileHydrated && jobsHydrated
     ? jobs.filter((job) => job.profileId === profile.id).slice().reverse()
     : [];
+  const sourceJob = reviewedJobs.find((job) => job.id === reviewJobId)?.posting;
   return (
     <section
       id="job-input"
@@ -31,18 +34,20 @@ export function JobInput() {
         Paste a job description, review what the employer needs, and link the
         verified facts from your Career Profile that support a match.
       </p>
-      <JobImportForm />
+      <JobImportForm key={`${profile.id}:${sourceJob?.id ?? "new"}`} sourceJob={sourceJob} />
+      {sourceJob ? <Button variant="ghost" className="mt-3" onClick={() => setReviewJobId(null)}>Start a different job</Button> : null}
       {reviewedJobs.length ? (
         <div className="mt-6 border-t border-line pt-5">
           <h3 className="text-meta font-semibold text-ink">Your reviewed jobs</h3>
           <p className="mt-1 text-meta text-ink-muted">Resume an analysis before or after saving it to Applications.</p>
           <ul className="mt-3 divide-y divide-line rounded-md border border-line">
             {reviewedJobs.map((job) => (
-              <li key={job.id}>
-                <Link href={`/analysis/${encodeURIComponent(job.id)}`} className="focus-ring flex items-center justify-between gap-3 rounded-md px-3 py-3 transition-ui hover:bg-inset">
+              <li key={job.id} className="flex flex-wrap items-center gap-2 pr-3">
+                <Link href={`/analysis/${encodeURIComponent(job.id)}`} className="focus-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-3 py-3 transition-ui hover:bg-inset">
                   <span className="min-w-0"><span className="block text-body font-medium text-ink">{job.posting.role}</span><span className="mt-0.5 block text-meta text-ink-secondary">{job.posting.company}{job.posting.location ? ` · ${job.posting.location}` : ""}</span></span>
                   <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                 </Link>
+                <Button variant="ghost" size="sm" onClick={() => { setReviewJobId(job.id); document.getElementById("job-input")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} aria-label={`Review requirements again for ${job.posting.role}`}>Review again</Button>
               </li>
             ))}
           </ul>

@@ -4,7 +4,7 @@ import { buildJobAnalysis } from "@/lib/analysis/mock-engine";
 import { createApplicationRecord, normalizeApplications } from "@/lib/applications/domain";
 import { createDemoProfile } from "@/lib/profile/mock-profile";
 import type { JobDraftInput } from "@/types/job";
-import { createRequirementDraft, getJobEvidenceOptions, MAX_JOB_DESCRIPTION_LENGTH, reviewJobInput, suggestJobRequirements } from "./ingestion";
+import { createRequirementDraft, getJobEvidenceOptions, MAX_JOB_DESCRIPTION_LENGTH, reviewJobInput, suggestJobRequirements, suggestJobRequirementsDetailed } from "./ingestion";
 
 function fixture() {
   const profile = createDemoProfile();
@@ -205,4 +205,164 @@ test("JSON enum objects are rejected without invoking their coercion hooks", () 
     Object.assign(draft.requirements[0], { [field]: { toString: null } });
     assert.equal(reviewJobInput(draft, profile).job, null);
   }
+});
+
+const clinicalDescription = `Clinical Evidence Lead
+About us
+We are an innovative company improving patient lives.
+Job Responsibilities
+- Owns and drives end-to-end clinical evidence strategy, defining and linking clinical need, value, TPP, claims, endpoints, and evidence to regulatory acceptance.
+- Leads clinical development in cross-functional AD and PDLM core teams and drives program governance and cross-project integration.
+- Oversees clinical trials, protocol development and trial registration.
+Minimum Qualifications
+- At least 5 years of clinical development experience in medical devices is required.
+- A Master's degree or equivalent experience in life sciences is required.
+- Must hold a current professional nursing license.
+Preferred Qualifications
+- Experience with real-world evidence.
+- PhD preferred.
+Work arrangements
+- Travel up to 20% is required.
+Eligibility
+- Must be authorized to work in Switzerland; visa sponsorship is not available.
+Benefits
+- We offer flexible hours, pension contributions and a generous holiday allowance.
+How to apply
+- Submit your resume and a cover letter through our careers page.`;
+
+test("clinical postings become assessable capabilities without scoring headings or marketing text", () => {
+  const requirements = suggestJobRequirements(clinicalDescription);
+  assert.equal(requirements.length, 10);
+  assert.equal(requirements[0].label, "Clinical evidence strategy · regulatory acceptance");
+  assert.equal(requirements[1].label, "Clinical development · program governance");
+  assert.ok(requirements.slice(0, 3).every((requirement) => requirement.category === "experience"));
+  assert.equal(requirements.find((requirement) => /trial registration/.test(requirement.sourceText))!.category, "experience");
+  assert.equal(requirements.filter((requirement) => requirement.importance === "critical").length, 2);
+  assert.equal(requirements.filter((requirement) => requirement.importance === "preferred").length, 2);
+  assert.equal(requirements.find((requirement) => /Travel/.test(requirement.sourceText))!.importance, "contextual");
+  for (const requirement of requirements) {
+    assert.ok(clinicalDescription.includes(requirement.sourceText));
+    assert.deepEqual(requirement.profileMatches, []);
+    assert.doesNotMatch(requirement.sourceText, /^Job Responsibilities$|innovative company|pension contributions|Submit your resume/);
+  }
+});
+
+test("numeric qualifications and degree alternatives retain their conditions", () => {
+  const requirements = suggestJobRequirements(clinicalDescription);
+  const experience = requirements.find((requirement) => requirement.sourceText.includes("At least 5 years"))!;
+  const education = requirements.find((requirement) => requirement.sourceText.includes("degree or equivalent"))!;
+  assert.equal(experience.label, experience.sourceText);
+  assert.equal(education.label, education.sourceText);
+  assert.equal(education.category, "education");
+});
+
+test("preferred sections apply until the next heading and required wording can override them", () => {
+  const requirements = suggestJobRequirements("Preferred Qualifications:\n- Experience with Python.\n- Must have clinical research experience.\nJob Responsibilities:\n- Design research studies.");
+  assert.equal(requirements.length, 3);
+  assert.equal(requirements[0].importance, "preferred");
+  assert.equal(requirements[1].importance, "core");
+  assert.equal(requirements[2].importance, "core");
+});
+
+test("benefit and application sections stay excluded through their bullets and paragraphs", () => {
+  const requirements = suggestJobRequirements("Benefits\n- We offer remote working and travel discounts.\nAnnual leave includes 30 days.\nHow to apply\nYou must submit your CV.\nRequired Qualifications\nExperience with Python.");
+  assert.equal(requirements.length, 1);
+  assert.equal(requirements[0].sourceText, "Experience with Python.");
+});
+
+test("wrapped CRLF bullets retain a verbatim source span and abbreviations stay intact", () => {
+  const source = "Job Responsibilities:\r\n• Owns clinical evidence strategy,\r\n  linking endpoints to regulatory acceptance.\r\nMinimum Qualifications:\r\n• B.Sc. or Ph.D. in life sciences is required.\r\n• At least 2.5 years of experience is required.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 3);
+  assert.equal(requirements[0].sourceText, "Owns clinical evidence strategy,\r\n  linking endpoints to regulatory acceptance.");
+  assert.ok(requirements[1].sourceText.includes("B.Sc. or Ph.D."));
+  assert.ok(requirements[2].label.includes("2.5 years"));
+  assert.ok(requirements.every((requirement) => source.includes(requirement.sourceText)));
+});
+
+test("identical repeated wording is deduplicated without merging distinct clinical duties", () => {
+  const source = "Job Responsibilities\n- Design clinical studies.\n- design clinical studies\n- Design clinical trials for medical devices.\n- Develop clinical evidence strategy.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 3);
+  assert.ok(requirements.some((requirement) => requirement.sourceText.includes("clinical trials for medical devices")));
+  assert.ok(requirements.some((requirement) => requirement.sourceText.includes("clinical evidence strategy")));
+});
+
+test("unnecessary qualifications and clinical trial registration never create a license blocker", () => {
+  const source = "Qualifications\n- No nursing license required.\n- No previous experience is required.\n- A professional nursing license is preferred.\nResponsibilities\n- Manage clinical trial registration.\n- Must be eligible for promotion.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 3);
+  assert.equal(requirements.find((requirement) => requirement.category === "license")!.importance, "preferred");
+  assert.equal(requirements.filter((requirement) => requirement.importance === "critical").length, 0);
+});
+
+test("overflow is visible and a late mandatory authorization survives the 30-item limit", () => {
+  const source = Array.from({ length: 40 }, (_, index) => `Design experiment number ${index} carefully`).join("\n")
+    + "\nMust have authorization to work in Switzerland.";
+  const result = suggestJobRequirementsDetailed(source);
+  assert.equal(result.totalSuggestions, 41);
+  assert.equal(result.omittedCount, 11);
+  assert.equal(result.requirements.length, 30);
+  assert.ok(result.requirements.some((requirement) => requirement.category === "work_authorization" && requirement.importance === "critical"));
+  assert.ok(result.requirements.every((requirement) => source.includes(requirement.sourceText)));
+});
+
+test("a negated license in a compound requirement does not create a hard gate", () => {
+  const source = "Requirements:\nNo medical license is required, but clinical research experience is essential.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 1);
+  assert.equal(requirements[0].category, "experience");
+  assert.equal(requirements[0].importance, "core");
+  assert.equal(requirements[0].isHardBlocker, false);
+  assert.ok(requirements[0].label.includes("No medical license is required"));
+});
+
+test("an unequivocal license to practise requirement becomes a separate critical gate", () => {
+  for (const source of ["Must hold a license to practice medicine.", "You must be licensed to practice medicine."]) {
+    const requirements = suggestJobRequirements(source);
+    assert.equal(requirements.length, 1);
+    assert.equal(requirements[0].category, "license");
+    assert.equal(requirements[0].importance, "critical");
+    assert.equal(requirements[0].sourceText, source);
+  }
+});
+
+test("separate degree and license lines beginning with an article do not merge", () => {
+  const source = "Required qualifications\nA degree in medicine\nA current professional nursing license is required";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 2);
+  assert.equal(requirements[0].category, "education");
+  assert.equal(requirements[1].category, "license");
+  assert.ok(requirements.every((requirement) => source.includes(requirement.sourceText)));
+});
+
+test("indented required-for wording continues the responsibility instead of becoming an orphan", () => {
+  const source = "Responsibilities:\n- Lead clinical evidence strategy\n  and develop study protocols\n  required for regulatory acceptance.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 1);
+  assert.equal(requirements[0].sourceText, "Lead clinical evidence strategy\n  and develop study protocols\n  required for regulatory acceptance.");
+});
+
+test("medical degree abbreviations do not split a qualification", () => {
+  const source = "Requirements:\n- An M.D. Degree is required.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 1);
+  assert.equal(requirements[0].category, "education");
+  assert.equal(requirements[0].sourceText, "An M.D. Degree is required.");
+});
+
+test("a negated authorization inside a research condition does not create an eligibility gate", () => {
+  const source = "Requirements:\nNo work authorization is required, but clinical research experience is essential.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 1);
+  assert.equal(requirements[0].category, "experience");
+  assert.equal(requirements[0].importance, "core");
+  assert.equal(requirements[0].isHardBlocker, false);
+});
+
+test("standalone employer sponsorship policies do not lower the scored candidate match", () => {
+  const source = "Requirements:\n- Design clinical experiments.\n- Visa sponsorship is not available.";
+  const requirements = suggestJobRequirements(source);
+  assert.equal(requirements.length, 1);
+  assert.equal(requirements[0].sourceText, "Design clinical experiments.");
 });

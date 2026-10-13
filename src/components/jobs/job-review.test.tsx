@@ -8,6 +8,7 @@ import { createRequirementDraft, getJobEvidenceOptions } from "@/lib/jobs/ingest
 import { ProfileProvider } from "@/lib/profile/context";
 import { createDemoProfile } from "@/lib/profile/mock-profile";
 import { JobRequirementEditor } from "./JobRequirementEditor";
+import { JobImportForm } from "./JobImportForm";
 
 test("the importer waits for hydration without presenting demo facts as candidate evidence", () => {
   const router: AppRouterInstance = { back() {}, forward() {}, refresh() {}, push() {}, replace() {}, prefetch() {}, bfcacheId: "job-review-hydration" };
@@ -54,4 +55,22 @@ test("critical work authorization records employer conditions without treating u
   assert.match(html, /Not stated \/ needs confirmation/);
   assert.match(html, /Your work authorization is read from your Career Profile/);
   assert.doesNotMatch(html, /Link verified Profile evidence|Designed haptic psychophysics/);
+});
+
+test("reviewing an existing posting copies its original source without rewriting saved analyses", () => {
+  const router: AppRouterInstance = { back() {}, forward() {}, refresh() {}, push() {}, replace() {}, prefetch() {}, bfcacheId: "job-rereview" };
+  const html = renderToStaticMarkup(
+    <AppRouterContext value={router}>
+      <ProfileProvider><JobsProvider><JobImportForm sourceJob={{
+        id: "job-existing", company: "Clinical Research", role: "Clinical Evidence Lead", location: "Istanbul",
+        rawDescription: "Job Responsibilities\nOwns clinical evidence strategy.",
+        requirements: [{ id: "old-heading", label: "Job Responsibilities", sourceText: "Job Responsibilities", importance: "core", category: "skill" }],
+      }} /></JobsProvider></ProfileProvider>
+    </AppRouterContext>
+  );
+  assert.match(html, /creating a new review of this posting/);
+  assert.match(html, /Previously saved jobs and application analyses stay unchanged/);
+  assert.match(html, /value="Clinical Evidence Lead"/);
+  assert.match(html, /Job Responsibilities\nOwns clinical evidence strategy/);
+  assert.doesNotMatch(html, /Continue requirement review/);
 });

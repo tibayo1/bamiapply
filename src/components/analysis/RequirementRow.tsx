@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -24,14 +24,40 @@ export function RequirementRow({
   onAddExperience,
 }: RequirementRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
 
   const hasOverride = r.userOverride !== undefined;
   const strength = r.userOverride?.confirmed ? "strong" : r.evidenceStrength;
+  const isCritical = r.importance === "critical";
+  const verifiedEvidence = (r.evidence ?? []).filter(isVerifiedProfileEvidence);
+  const unverifiedCount = (r.evidence ?? []).filter(
+    (item) => Boolean(item.link) && !isVerifiedProfileEvidence(item)
+  ).length;
+  const hasVerifiedEvidence = verifiedEvidence.length > 0;
+  // Saved labels are never rewritten. Older sentence-length labels are only
+  // shortened for the collapsed view; full wording remains in the drawer.
+  const label = r.label.length > 104
+    ? `${r.label.slice(0, 101).replace(/\s+\S*$/, "").trim()}…`
+    : r.label;
+  const evidenceSummary = hasVerifiedEvidence
+    ? `${verifiedEvidence.length} linked verified evidence ${verifiedEvidence.length === 1 ? "item" : "items"}`
+    : unverifiedCount > 0
+    ? `${unverifiedCount} linked ${unverifiedCount === 1 ? "item needs" : "items need"} verification · none verified`
+    : "No linked verified evidence";
 
-  const isStrong = strength === "strong";
-  const isPartial = strength === "partial";
-  const isNone = strength === "none";
-  const isNeedsConf = strength === "needs_confirmation";
+  const isStrong = isCritical
+    ? r.criticalStatus === "satisfied"
+    : strength === "strong" && (hasVerifiedEvidence || hasOverride);
+  const isPartial = !isCritical && strength === "partial" && hasVerifiedEvidence;
+  const isNeedsConf = isCritical
+    ? r.criticalStatus === undefined || r.criticalStatus === "needs_confirmation"
+    : !hasVerifiedEvidence && (unverifiedCount > 0 || strength === "needs_confirmation");
+  const isNone = !isStrong && !isPartial && !isNeedsConf;
+  const matchLabel = hasOverride
+    ? r.userOverride?.confirmed ? "Self-reported match" : "Self-reported unmet"
+    : isCritical
+    ? r.criticalStatus === "satisfied" ? "Gate satisfied" : r.criticalStatus === "unmet" ? "Gate unmet" : "Gate unconfirmed"
+    : isStrong ? "Direct evidence" : isPartial ? "Related evidence" : isNeedsConf ? "Needs verification" : "Not linked";
 
   return (
     <div
@@ -45,7 +71,8 @@ export function RequirementRow({
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
         aria-expanded={expanded}
-        className="focus-ring flex w-full items-start sm:items-center justify-between gap-3 p-4 sm:p-5 text-left rounded-xl"
+        aria-controls={expanded ? detailsId : undefined}
+        className="focus-ring flex w-full flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 sm:p-5 text-left rounded-xl"
       >
         <div className="flex items-start sm:items-center gap-3 min-w-0">
           {/* Status Icon */}
@@ -73,8 +100,8 @@ export function RequirementRow({
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-body font-semibold text-ink">
-                {r.label}
+              <span className="text-body font-semibold text-ink break-words">
+                {label}
               </span>
 
               {/* Importance badge */}
@@ -96,15 +123,14 @@ export function RequirementRow({
               </span>
             </div>
 
-            {/* Sub-label preview */}
-            <p className="mt-0.5 text-meta text-ink-secondary line-clamp-1">
-              {r.description || r.sourceText}
+            <p className="mt-1 text-meta text-ink-secondary">
+              {evidenceSummary}
             </p>
           </div>
         </div>
 
         {/* Right side: Match state badge and toggle */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex w-full sm:w-auto items-center justify-between gap-3 shrink-0 pl-9 sm:pl-0">
           <span
             className={cn(
               "inline-flex items-center rounded-md px-2.5 py-1 font-mono text-[0.6875rem] font-semibold uppercase tracking-wider",
@@ -115,15 +141,7 @@ export function RequirementRow({
               isNeedsConf && !hasOverride && "bg-brand-subtle text-brand"
             )}
           >
-            {hasOverride
-              ? r.userOverride?.confirmed ? "Self-reported match" : "Self-reported unmet"
-              : isStrong
-              ? "Strong Match"
-              : isPartial
-              ? "Partial Match"
-              : isNeedsConf
-              ? "Needs confirmation"
-              : "No evidence found"}
+            {matchLabel}
           </span>
 
           <ChevronDown
@@ -144,7 +162,13 @@ export function RequirementRow({
 
       {/* Expanded Details Drawer */}
       {expanded && (
-        <div className="border-t border-line px-4 pb-5 pt-4 sm:px-6 space-y-4 text-left">
+        <div id={detailsId} className="border-t border-line px-4 pb-5 pt-4 sm:px-6 space-y-4 text-left">
+          {label !== r.label && r.label !== r.sourceText && (
+            <h3 className="text-body font-semibold text-ink">{r.label}</h3>
+          )}
+          {r.description && r.description !== r.label && r.description !== r.sourceText && (
+            <p className="text-meta text-ink-secondary">{r.description}</p>
+          )}
           {/* Source Text from Employer if present */}
           {r.sourceText && (
             <div className="rounded-lg bg-inset/50 p-3 border border-line/60">
@@ -165,14 +189,16 @@ export function RequirementRow({
             <div className="rounded-lg bg-inset/70 p-4 border border-line flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <p className="text-body font-medium text-ink">
-                  Bámi could not find {r.label} in your Career Profile.
+                  {isCritical ? "Eligibility is assessed separately from experience evidence." : "No verified Profile evidence is linked to this requirement."}
                 </p>
                 <p className="mt-0.5 text-meta text-ink-muted">
-                  This does not necessarily mean you lack this experience. If you have this background, you can add it or confirm it.
+                  {isCritical
+                    ? "Review the underlying eligibility facts in Career Profile. The gate status above does not create a verified experience claim."
+                    : "This is an evidence gap in the assessment, not proof that you lack the experience. Add or confirm relevant facts in Career Profile, then link them to this requirement."}
                 </p>
               </div>
 
-              {onAddExperience && (
+              {onAddExperience && !isCritical && (
                 <button
                   type="button"
                   onClick={() => onAddExperience(r)}

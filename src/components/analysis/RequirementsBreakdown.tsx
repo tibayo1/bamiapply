@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { JobRequirement } from "@/types/analysis";
 import { RequirementRow } from "./RequirementRow";
@@ -17,6 +17,7 @@ export function RequirementsBreakdown({
   onAddExperience,
 }: RequirementsBreakdownProps) {
   const [activeTab, setActiveTab] = useState<TabType>("all");
+  const headingId = useId();
 
   const coreItems = requirements.filter((r) => r.importance === "core");
   const preferredItems = requirements.filter((r) => r.importance === "preferred");
@@ -45,19 +46,19 @@ export function RequirementsBreakdown({
   ];
 
   return (
-    <section aria-labelledby="breakdown-heading" className="space-y-4">
+    <section aria-labelledby={headingId} className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 font-mono text-micro font-semibold uppercase tracking-wider text-brand">
             <span className="font-bold text-brand mr-0.5">/</span>
             DETAILED EVIDENCE MAPPING
           </div>
-          <h2 id="breakdown-heading" className="mt-1 text-heading font-semibold text-ink">
-            Requirements breakdown
+          <h2 id={headingId} className="mt-1 text-heading font-semibold text-ink">
+            Requirements &amp; Profile evidence
           </h2>
         </div>
         <p className="text-meta text-ink-muted">
-          Click any requirement to inspect verified evidence or address gaps
+          Open a requirement to review its source wording and linked evidence
         </p>
       </div>
 
@@ -69,6 +70,7 @@ export function RequirementsBreakdown({
             <button
               key={tab.id}
               type="button"
+              aria-pressed={isActive}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 "focus-ring transition-ui inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-meta font-medium",
@@ -92,6 +94,10 @@ export function RequirementsBreakdown({
           );
         })}
       </div>
+
+      <p className="text-meta text-ink-muted">
+        Missing links show what this assessment cannot support yet; they do not prove you lack the experience.
+      </p>
 
       {/* Expandable list */}
       <div className="space-y-2.5">

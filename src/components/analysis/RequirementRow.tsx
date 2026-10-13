@@ -11,7 +11,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { JobRequirement } from "@/types/analysis";
+import { evidenceVerificationLabel, isVerifiedProfileEvidence } from "@/lib/analysis/presentation";
+import type { CandidateEvidence, JobRequirement } from "@/types/analysis";
 
 interface RequirementRowProps {
   requirement: JobRequirement;
@@ -24,8 +25,8 @@ export function RequirementRow({
 }: RequirementRowProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const hasOverride = r.userOverride?.confirmed;
-  const strength = hasOverride ? "strong" : r.evidenceStrength;
+  const hasOverride = r.userOverride !== undefined;
+  const strength = r.userOverride?.confirmed ? "strong" : r.evidenceStrength;
 
   const isStrong = strength === "strong";
   const isPartial = strength === "partial";
@@ -51,10 +52,11 @@ export function RequirementRow({
           <span
             className={cn(
               "mt-0.5 sm:mt-0 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-              isStrong && "bg-success-subtle text-success",
-              isPartial && "bg-warning-subtle text-warning",
-              isNone && "bg-inset text-ink-muted",
-              isNeedsConf && "bg-brand-subtle text-brand"
+              isStrong && !hasOverride && "bg-success-subtle text-success",
+              hasOverride && "bg-warning-subtle text-warning",
+              isPartial && !hasOverride && "bg-warning-subtle text-warning",
+              isNone && !hasOverride && "bg-inset text-ink-muted",
+              isNeedsConf && !hasOverride && "bg-brand-subtle text-brand"
             )}
             aria-hidden="true"
           >
@@ -106,13 +108,16 @@ export function RequirementRow({
           <span
             className={cn(
               "inline-flex items-center rounded-md px-2.5 py-1 font-mono text-[0.6875rem] font-semibold uppercase tracking-wider",
-              isStrong && "bg-success-subtle text-success",
-              isPartial && "bg-warning-subtle text-warning",
-              isNone && "bg-inset text-ink-muted",
-              isNeedsConf && "bg-brand-subtle text-brand"
+              isStrong && !hasOverride && "bg-success-subtle text-success",
+              hasOverride && "bg-warning-subtle text-warning",
+              isPartial && !hasOverride && "bg-warning-subtle text-warning",
+              isNone && !hasOverride && "bg-inset text-ink-muted",
+              isNeedsConf && !hasOverride && "bg-brand-subtle text-brand"
             )}
           >
-            {isStrong
+            {hasOverride
+              ? r.userOverride?.confirmed ? "Self-reported match" : "Self-reported unmet"
+              : isStrong
               ? "Strong Match"
               : isPartial
               ? "Partial Match"
@@ -130,6 +135,12 @@ export function RequirementRow({
           />
         </div>
       </button>
+
+      {hasOverride && (
+        <p className="px-4 pb-3 sm:px-5 text-micro text-ink-muted">
+          What-if assessment · Career Profile unchanged
+        </p>
+      )}
 
       {/* Expanded Details Drawer */}
       {expanded && (
@@ -149,37 +160,7 @@ export function RequirementRow({
 
           {/* Evidence from Candidate Profile */}
           {r.evidence && r.evidence.length > 0 ? (
-            <div className="space-y-2.5">
-              <span className="font-mono text-micro uppercase tracking-wider text-ink-secondary flex items-center gap-1.5 font-semibold">
-                <Sparkles className="h-3 w-3 text-brand" />
-                Verified evidence from your career profile
-              </span>
-
-              {r.evidence.map((ev) => (
-                <div
-                  key={ev.id}
-                  className="rounded-lg bg-surface border border-line p-3.5 shadow-xs"
-                >
-                  <div className="flex items-center justify-between text-meta">
-                    <span className="font-semibold text-ink">
-                      {ev.sourceTitle}
-                      {ev.sourceOrganization && (
-                        <span className="font-normal text-ink-muted">
-                          {" "}· {ev.sourceOrganization}
-                        </span>
-                      )}
-                    </span>
-                    <span className="font-mono text-micro uppercase text-ink-muted">
-                      {ev.sourceType}
-                    </span>
-                  </div>
-
-                  <p className="mt-2 text-body text-ink-secondary leading-relaxed">
-                    {ev.evidenceText}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <RequirementEvidenceList evidence={r.evidence} />
           ) : (
             <div className="rounded-lg bg-inset/70 p-4 border border-line flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
@@ -214,12 +195,46 @@ export function RequirementRow({
 
           {/* User confirmation override notice if applied */}
           {hasOverride && (
-            <p className="text-meta text-success font-medium">
-              ✓ You confirmed having this experience for this evaluation.
+            <p className="text-meta text-ink-secondary font-medium">
+              {r.userOverride?.note}
+              {" "}This self-reported override applies only to this assessment;
+              it is not verified Profile evidence.
             </p>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Keep each evidence item's verification status visible in the drawer. */
+export function RequirementEvidenceList({ evidence }: { evidence: CandidateEvidence[] }) {
+  return (
+    <div className="space-y-2.5">
+      <span className="font-mono text-micro uppercase tracking-wider text-ink-secondary flex items-center gap-1.5 font-semibold">
+        <Sparkles className="h-3 w-3 text-brand" />
+        Evidence from your Career Profile
+      </span>
+      {evidence.map((item) => (
+        <div key={item.id} className="rounded-lg bg-surface border border-line p-3.5 shadow-xs">
+          <div className="flex items-center justify-between gap-3 text-meta">
+            <span className="font-semibold text-ink">
+              {item.sourceTitle}
+              {item.sourceOrganization && (
+                <span className="font-normal text-ink-muted"> · {item.sourceOrganization}</span>
+              )}
+            </span>
+            <span className="font-mono text-micro uppercase text-ink-muted">{item.sourceType}</span>
+          </div>
+          <span className={cn(
+            "mt-1 inline-flex font-mono text-micro",
+            isVerifiedProfileEvidence(item) ? "text-success" : "text-warning"
+          )}>
+            {evidenceVerificationLabel(item)}
+          </span>
+          <p className="mt-2 text-body text-ink-secondary leading-relaxed">{item.evidenceText}</p>
+        </div>
+      ))}
     </div>
   );
 }

@@ -2,14 +2,15 @@ import type {
   CareerProfile,
   EvidenceLink,
   EvidenceRecordType,
-  ExperienceRecord,
   PersonalProfile,
   ProfileClaim,
   ProfileCollection,
-  ResearchProjectRecord,
+  ProfileRecord,
   VerificationStatus,
 } from "@/types/profile";
 import { createDemoProfile } from "./mock-profile";
+import { prepareImportAdditions, type ImportAdditions } from "./import";
+import { normalizeCareerProfile, normalizeProfileRecord } from "./validation";
 
 export type ProfileAction =
   | { type: "UPDATE_PERSONAL"; personal: Partial<PersonalProfile> }
@@ -36,16 +37,67 @@ export type ProfileAction =
     }
   | {
       type: "APPLY_IMPORT";
-      additions: {
-        experiences?: CareerProfile["experiences"];
-        education?: CareerProfile["education"];
-        researchProjects?: CareerProfile["researchProjects"];
-        skills?: CareerProfile["skills"];
-        achievements?: CareerProfile["achievements"];
-      };
+      additions: ImportAdditions;
     }
   | { type: "RESET_PROFILE" }
   | { type: "REPLACE_PROFILE"; profile: CareerProfile };
+
+/** Ordinary saves cannot turn an existing statement into confirmed evidence. */
+function reconcileClaims(claims: ProfileClaim[], previous: ProfileClaim[], recordId: string): ProfileClaim[] {
+  const byId = new Map(previous.map((claim) => [claim.id, claim]));
+  return claims.map((claim) => {
+    const old = byId.get(claim.id);
+    if (!old) {
+      return claim.source === "user" && !claim.sourceRecordId
+        ? { ...claim, sourceRecordId: recordId }
+        : claim;
+    }
+    const changed = old.text.trim() !== claim.text.trim();
+    return {
+      ...claim,
+      source: old.source,
+      sourceRecordId: old.sourceRecordId,
+      derivedFromClaimId: old.derivedFromClaimId,
+      verificationStatus: changed && old.verificationStatus === "verified"
+        ? "needs_confirmation"
+        : old.verificationStatus,
+    };
+  });
+}
+
+function reconcileRecord(record: ProfileRecord, previous?: ProfileRecord): ProfileRecord {
+  if ("responsibilities" in record) {
+    const old = previous && "responsibilities" in previous ? previous : undefined;
+    const contextChanged = old && (
+      old.title !== record.title || old.organization !== record.organization ||
+      old.startDate !== record.startDate || old.endDate !== record.endDate
+    );
+    return {
+      ...record,
+      source: old?.source ?? record.source,
+      createdAt: old?.createdAt ?? record.createdAt,
+      verificationStatus: contextChanged && old.verificationStatus === "verified"
+        ? "needs_confirmation" : record.verificationStatus,
+      responsibilities: reconcileClaims(record.responsibilities, old?.responsibilities ?? [], record.id),
+    };
+  }
+  if ("outcomes" in record) {
+    const old = previous && "outcomes" in previous ? previous : undefined;
+    const contextChanged = old && (
+      old.title !== record.title || old.organization !== record.organization ||
+      old.objective !== record.objective || old.role !== record.role
+    );
+    return {
+      ...record,
+      source: old?.source ?? record.source,
+      createdAt: old?.createdAt ?? record.createdAt,
+      verificationStatus: contextChanged && old.verificationStatus === "verified"
+        ? "needs_confirmation" : record.verificationStatus,
+      outcomes: reconcileClaims(record.outcomes, old?.outcomes ?? [], record.id),
+    };
+  }
+  return previous ? { ...record, source: previous.source, createdAt: previous.createdAt } : record;
+}
 
 function removeDanglingLinks(
   profile: CareerProfile,
@@ -78,12 +130,19 @@ function removeDanglingLinks(
     skillIds: recordType === "skill" ? p.skillIds.filter((id) => id !== recordId) : p.skillIds,
   }));
 
+  const achievements = profile.achievements.map((achievement) =>
+    achievement.linkedRecordType === recordType && achievement.linkedRecordId === recordId
+      ? { ...achievement, linkedRecordType: undefined, linkedRecordId: undefined }
+      : achievement
+  );
+
   return {
     ...profile,
     skills,
     careerStories,
     experiences,
     researchProjects,
+    achievements,
   };
 }
 
@@ -94,7 +153,7 @@ export function profileReducer(
 ): CareerProfile {
   switch (action.type) {
     case "UPDATE_PERSONAL": {
-      return {
+      return normalizeCareerProfile({
         ...state,
         personal: {
           ...state.personal,
@@ -102,11 +161,15 @@ export function profileReducer(
           updatedAt: now,
         },
         updatedAt: now,
-      };
+      }) ?? state;
     }
 
     case "UPSERT_RECORD": {
-      const { collection, record } = action;
+      const { collection } = action;
+      const normalized = normalizeProfileRecord(collection, action.record, now);
+      if (!normalized) return state;
+      const previous = state[collection].find((item) => item.id === normalized.id);
+      const record = reconcileRecord(normalized, previous);
       const list = state[collection] as unknown as Array<{
         id: string;
         createdAt?: string;
@@ -127,11 +190,11 @@ export function profileReducer(
           },
         ];
       }
-      return {
+      return normalizeCareerProfile({
         ...state,
         [collection]: nextList,
         updatedAt: now,
-      };
+      }) ?? state;
     }
 
     case "REMOVE_RECORD": {
@@ -188,47 +251,19 @@ export function profileReducer(
       const list = state[collection] as Array<{ id: string; verificationStatus: VerificationStatus }>;
       const nextList = list.map((record) => {
         if (record.id !== id) return record;
-        // When marking a whole record as verified, also elevate its claims if desired
-        if (status === "verified") {
-          if ("responsibilities" in record) {
-            const exp = record as ExperienceRecord;
-            return {
-              ...exp,
-              verificationStatus: status,
-              responsibilities: exp.responsibilities.map((c: ProfileClaim) =>
-                c.verificationStatus === "needs_confirmation"
-                  ? { ...c, verificationStatus: "verified" as const }
-                  : c
-              ),
-              updatedAt: now,
-            };
-          }
-          if ("outcomes" in record) {
-            const proj = record as ResearchProjectRecord;
-            return {
-              ...proj,
-              verificationStatus: status,
-              outcomes: proj.outcomes.map((c: ProfileClaim) =>
-                c.verificationStatus === "needs_confirmation"
-                  ? { ...c, verificationStatus: "verified" as const }
-                  : c
-              ),
-              updatedAt: now,
-            };
-          }
-        }
+        // Confirming record-level facts does not confirm its individual claims.
         return { ...record, verificationStatus: status, updatedAt: now };
       });
 
-      return {
+      return normalizeCareerProfile({
         ...state,
         [collection]: nextList,
         updatedAt: now,
-      };
+      }) ?? state;
     }
 
     case "UPDATE_PREFERENCES": {
-      return {
+      return normalizeCareerProfile({
         ...state,
         preferences: {
           ...state.preferences,
@@ -236,12 +271,13 @@ export function profileReducer(
           updatedAt: now,
         },
         updatedAt: now,
-      };
+      }) ?? state;
     }
 
     case "APPLY_IMPORT": {
-      const { additions } = action;
-      return {
+      const additions = prepareImportAdditions(state, action.additions);
+      if (Object.values(additions).every((records) => !records?.length)) return state;
+      return normalizeCareerProfile({
         ...state,
         experiences: additions.experiences
           ? [...state.experiences, ...additions.experiences]
@@ -259,7 +295,7 @@ export function profileReducer(
           ? [...state.achievements, ...additions.achievements]
           : state.achievements,
         updatedAt: now,
-      };
+      }) ?? state;
     }
 
     case "RESET_PROFILE": {
@@ -267,7 +303,7 @@ export function profileReducer(
     }
 
     case "REPLACE_PROFILE": {
-      return action.profile;
+      return normalizeCareerProfile(action.profile) ?? state;
     }
 
     default:

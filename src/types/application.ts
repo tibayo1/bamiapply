@@ -1,3 +1,6 @@
+import type { JobAnalysis, JobPosting } from "./analysis";
+import type { EvidenceLink, ProfileSource, VerificationStatus, WorkAuthorization } from "./profile";
+
 /**
  * Core TypeScript types for the Bámi Apply application domain.
  * Structured to map cleanly to a future Supabase/database schema.
@@ -36,7 +39,7 @@ export interface Application {
   role: string;
   location: string;
 
-  /** AI-derived match score, 0–100 */
+  /** Match score computed by the deterministic evidence-based engine, 0–100. */
   fitScore: number;
 
   /** Human-readable recommendation derived from fitScore and profile analysis */
@@ -65,6 +68,48 @@ export interface Application {
 
   /** Optional: raw job description text */
   jobDescription?: string;
+}
+
+/** A historical, confirmed excerpt; live Profile changes cannot rewrite it. */
+export interface ApplicationEvidenceSnapshot {
+  link: EvidenceLink;
+  recordTitle: string;
+  sourceOrganization?: string;
+  excerpt: string;
+  source: ProfileSource;
+  sourceRecordId?: string;
+  derivedFromClaimId?: string;
+  recordUpdatedAt: string;
+  verificationStatus: "verified";
+}
+
+export interface ApplicationAnalysisSnapshot {
+  id: string;
+  capturedAt: string;
+  profileRevision: string;
+  profileUpdatedAt: string;
+  analysis: JobAnalysis;
+  evidence: ApplicationEvidenceSnapshot[];
+  /** Status pointers only: unconfirmed wording must never become an application claim. */
+  unconfirmedEvidence: { link: EvidenceLink; verificationStatus: Exclude<VerificationStatus, "verified"> }[];
+  /** Facts/statuses at capture time, used to verify historical eligibility gates. */
+  authorizations: WorkAuthorization[];
+}
+
+export interface ApplicationStatusEvent {
+  status: ApplicationStatus;
+  changedAt: string;
+  reason?: string;
+}
+
+/** Independently persisted lifecycle state and immutable assessment history. */
+export interface ApplicationRecord extends Application {
+  profileId: string;
+  job: JobPosting;
+  createdAt: string;
+  snapshots: ApplicationAnalysisSnapshot[];
+  statusHistory: ApplicationStatusEvent[];
+  skipReason?: string;
 }
 
 /**

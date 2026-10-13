@@ -191,8 +191,18 @@ const AUTH_RANK: Record<WorkAuthorization["status"], number> = {
   unknown: 2,
 };
 
-function bestAuthorization(matches: WorkAuthorization[]): WorkAuthorization | undefined {
-  return [...matches].sort((a, b) => AUTH_RANK[a.status] - AUTH_RANK[b.status])[0];
+function currentAuthorization(entry: WorkAuthorization, now: Date): boolean {
+  if (entry.verificationStatus !== "verified" || entry.status === "unknown") return false;
+  if (!entry.expiresAt) return true;
+  const expiry = Date.parse(entry.expiresAt);
+  return Number.isFinite(expiry) && expiry >= now.getTime();
+}
+
+function bestAuthorization(matches: WorkAuthorization[], now: Date): WorkAuthorization | undefined {
+  return [...matches].sort((a, b) =>
+    Number(currentAuthorization(b, now)) - Number(currentAuthorization(a, now)) ||
+    AUTH_RANK[a.status] - AUTH_RANK[b.status]
+  )[0];
 }
 
 /** The candidate's work-authorization entry for one country/region, if any. */
@@ -206,13 +216,14 @@ export function getWorkAuthorization(
 /** Best matching entry across several accepted regions (e.g. Switzerland, EU, EFTA). */
 export function getWorkAuthorizationForRegions(
   profile: CareerProfile,
-  regions: string[]
+  regions: string[],
+  now: Date = new Date()
 ): WorkAuthorization | undefined {
   const wanted = new Set(regions.flatMap((r) => [...regionSet(r)]));
   const matches = profile.workAuthorizations.filter((wa) =>
     [...regionSet(wa.countryOrRegion)].some((t) => wanted.has(t))
   );
-  return bestAuthorization(matches);
+  return bestAuthorization(matches, now);
 }
 
 export type EligibilityStatus = "satisfied" | "unmet" | "needs_confirmation";
@@ -223,13 +234,13 @@ export type EligibilityStatus = "satisfied" | "unmet" | "needs_confirmation";
  */
 export function workAuthorizationToEligibility(
   entry: WorkAuthorization | undefined,
-  options: { sponsorshipAvailable?: boolean; now?: Date } = {}
+  options: { sponsorshipAvailable?: boolean | null; now?: Date } = {}
 ): EligibilityStatus {
   if (!entry) return "needs_confirmation";
   if (entry.verificationStatus !== "verified") return "needs_confirmation";
   if (entry.expiresAt) {
     const expiry = new Date(entry.expiresAt);
-    if (!Number.isNaN(expiry.getTime()) && expiry < (options.now ?? new Date())) {
+    if (Number.isNaN(expiry.getTime()) || expiry < (options.now ?? new Date())) {
       return "needs_confirmation";
     }
   }
@@ -237,6 +248,7 @@ export function workAuthorizationToEligibility(
     case "authorized":
       return "satisfied";
     case "requires_sponsorship":
+      if (options.sponsorshipAvailable === null) return "needs_confirmation";
       return options.sponsorshipAvailable ? "satisfied" : "unmet";
     case "unknown":
       return "needs_confirmation";
@@ -266,17 +278,19 @@ function countStatus(status: VerificationStatus, profile: CareerProfile): number
   ];
   n += records.filter((r) => r.verificationStatus === status).length;
   for (const e of profile.experiences) {
-    n += e.responsibilities.filter((c) => c.verificationStatus === status).length;
+    n += e.responsibilities.filter((c) => c.verificationStatus === status &&
+      (status !== "verified" || e.verificationStatus === "verified")).length;
   }
   for (const p of profile.researchProjects) {
-    n += p.outcomes.filter((c) => c.verificationStatus === status).length;
+    n += p.outcomes.filter((c) => c.verificationStatus === status &&
+      (status !== "verified" || p.verificationStatus === "verified")).length;
   }
   return n;
 }
 
 export function getProfileSignals(profile: CareerProfile): ProfileSignals {
   const known = profile.workAuthorizations.filter(
-    (w) => w.verificationStatus === "verified" && w.status !== "unknown"
+    (w) => currentAuthorization(w, new Date())
   );
   return {
     verifiedItems: countStatus("verified", profile),

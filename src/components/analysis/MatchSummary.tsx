@@ -1,6 +1,7 @@
 import { HelpCircle, ShieldCheck } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import type { JobAnalysis } from "@/types/analysis";
+import { summarizeEligibility } from "@/lib/analysis/presentation";
 
 interface MatchSummaryProps {
   analysis: JobAnalysis;
@@ -30,9 +31,8 @@ export function MatchSummary({ analysis }: MatchSummaryProps) {
       (r.evidenceStrength === "strong" || r.evidenceStrength === "partial" || r.userOverride?.confirmed)
   ).length;
 
-  const criticalPending = requirements.filter(
-    (r) => r.importance === "critical" && r.criticalStatus === "needs_confirmation" && !r.userOverride
-  ).length;
+  const eligibility = summarizeEligibility(analysis.criticalIssues);
+  const hasOverrides = requirements.some((r) => r.userOverride !== undefined);
 
   return (
     <div className="rounded-xl border border-line bg-surface p-5 sm:p-6 shadow-sm">
@@ -42,7 +42,9 @@ export function MatchSummary({ analysis }: MatchSummaryProps) {
             Assessment breakdown
           </h3>
           <p className="mt-0.5 text-meta text-ink-muted">
-            Weighted evaluation based strictly on confirmed profile history.
+            {hasOverrides
+              ? "Weighted evaluation uses verified profile evidence and local self-reported overrides."
+              : "Weighted evaluation based on verified profile history."}
           </p>
         </div>
 
@@ -50,10 +52,10 @@ export function MatchSummary({ analysis }: MatchSummaryProps) {
         <Tooltip
           label={
             confidence === "High"
-              ? "High confidence: All major requirements and critical eligibility criteria have concrete profile evidence."
+              ? "High confidence: Most requirement determinations are complete, with no unresolved critical criteria."
               : confidence === "Medium"
-              ? "Medium confidence: One or more critical requirements need confirmation before final determination."
-              : "Low confidence: Significant portions of the role requirements lack profile data."
+              ? "Medium confidence: Some requirements need confirmation before final determination."
+              : "Low confidence: Much of the profile or requirement information needs confirmation."
           }
           side="left"
         >
@@ -67,6 +69,13 @@ export function MatchSummary({ analysis }: MatchSummaryProps) {
           </div>
         </Tooltip>
       </div>
+
+      {hasOverrides && (
+        <p className="mt-4 rounded-lg border border-line bg-inset p-3 text-meta text-ink-secondary">
+          What-if assessment: self-reported overrides affect this analysis only.
+          They are not verified Career Profile evidence.
+        </p>
+      )}
 
       <div className="mt-5 grid gap-4 sm:grid-cols-4">
         {/* Core requirements (70%) */}
@@ -151,20 +160,26 @@ export function MatchSummary({ analysis }: MatchSummaryProps) {
             <span className="font-mono text-micro text-ink-muted">Gate</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-xl font-bold tracking-tight text-ink tabular-nums">
-              {criticalPending > 0 ? `${criticalPending} unconfirmed` : "Satisfied"}
+            <span className={`text-xl font-bold tracking-tight tabular-nums ${eligibility.unmet > 0 ? "text-danger" : eligibility.pending > 0 ? "text-warning" : "text-ink"}`}>
+              {eligibility.total === 0
+                ? "Not specified"
+                : eligibility.unmet > 0
+                ? `${eligibility.unmet} unmet`
+                : eligibility.pending > 0
+                ? `${eligibility.pending} unconfirmed`
+                : "Satisfied"}
             </span>
           </div>
           <p className="mt-1 text-micro text-ink-muted leading-tight">
-            {criticalPending > 0
-              ? "Action needed above"
-              : "All hard blockers clear"}
+            {eligibility.total === 0
+              ? "No critical requirements identified"
+              : `${eligibility.satisfied} satisfied · ${eligibility.unmet} unmet · ${eligibility.pending} unconfirmed`}
           </p>
         </div>
       </div>
 
       <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between text-micro text-ink-muted font-mono">
-        <span>Evidence coverage across role: {evidenceCoverage}%</span>
+        <span>{hasOverrides ? "Assessment coverage including overrides" : "Verified evidence coverage across role"}: {evidenceCoverage}%</span>
         <span>Deterministic calculation · No arbitrary AI score</span>
       </div>
     </div>

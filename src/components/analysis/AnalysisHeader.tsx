@@ -3,13 +3,15 @@ import { ArrowLeft, ArrowRight, Bookmark, ExternalLink, MapPin, XCircle } from "
 import { getInitials } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import type { JobAnalysis } from "@/types/analysis";
+import type { ApplicationStatus } from "@/types/application";
 
 interface AnalysisHeaderProps {
   analysis: JobAnalysis;
   onBuildApplication: () => void;
   onSaveForLater: () => void;
   onSkipRole: () => void;
-  isSaved?: boolean;
+  applicationStatus?: ApplicationStatus;
+  actionsDisabled?: boolean;
 }
 
 export function AnalysisHeader({
@@ -17,13 +19,11 @@ export function AnalysisHeader({
   onBuildApplication,
   onSaveForLater,
   onSkipRole,
-  isSaved,
+  applicationStatus,
+  actionsDisabled = false,
 }: AnalysisHeaderProps) {
   const { company, role, location, sourceUrl } = analysis;
-
-  const hasHardBlocker = analysis.criticalIssues.some(
-    (c) => c.status === "unmet" && c.isHardBlocker
-  );
+  const isSaved = applicationStatus !== undefined;
 
   return (
     <div className="space-y-4">
@@ -83,6 +83,7 @@ export function AnalysisHeader({
             variant="ghost"
             size="md"
             onClick={onSkipRole}
+            disabled={actionsDisabled || applicationStatus === "Skipped"}
             className="text-ink-muted hover:text-danger"
           >
             <XCircle className="h-4 w-4 mr-1.5" />
@@ -94,33 +95,25 @@ export function AnalysisHeader({
             variant="secondary"
             size="md"
             onClick={onSaveForLater}
+            disabled={actionsDisabled || isSaved}
           >
             <Bookmark className="h-4 w-4 mr-1.5" />
-            {isSaved ? "Saved" : "Save for later"}
+            {isSaved ? applicationStatus === "Saved" ? "Saved" : "Tracked" : "Save for later"}
           </Button>
 
           {/* Primary Action Button */}
-          {hasHardBlocker ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={onSaveForLater}
-              className="border-warning text-warning"
-            >
-              Save role anyway
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={onBuildApplication}
-            >
-              Build application
-              <ArrowRight className="h-4 w-4 ml-1.5" />
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onBuildApplication}
+            disabled={actionsDisabled}
+          >
+            {isSaved && applicationStatus !== "Saved" && applicationStatus !== "Skipped"
+              ? "Open application"
+              : "Build application"}
+            <ArrowRight className="h-4 w-4 ml-1.5" />
+          </Button>
         </div>
       </div>
     </div>

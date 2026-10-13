@@ -73,8 +73,8 @@ export interface RequirementMatch {
 export interface EligibilityRule {
   /** Any of these regions satisfies the rule, e.g. Switzerland, EU, EFTA. */
   acceptedRegions: string[];
-  /** Whether the employer offers visa sponsorship. */
-  sponsorshipAvailable: boolean;
+  /** Whether the employer offers visa sponsorship. null means not confirmed. */
+  sponsorshipAvailable: boolean | null;
 }
 
 /**
@@ -117,7 +117,7 @@ export interface JobRequirementSpec
   notes?: Partial<Record<"partial" | "none", string>>;
 }
 
-/** A parsed job posting. Mock today, AI extraction later. */
+/** A reviewed employer posting, with candidate evidence resolved separately. */
 export interface JobPosting {
   id: string;
   company: string;

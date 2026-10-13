@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx src/lib/profile/profile.test.ts && tsx src/lib/analysis/scoring.test.ts"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "tsx src/lib/profile/profile.test.ts && tsx src/lib/analysis/scoring.test.ts && tsx src/components/profile/forms/claim-editing.test.ts && tsx src/lib/profile/import-integrity.test.ts && tsx src/lib/profile/storage.test.ts && tsx src/lib/profile/integrity.test.ts && tsx src/lib/analysis/presentation.test.tsx && tsx src/lib/applications/domain.test.ts && tsx src/lib/applications/storage.test.ts && tsx src/lib/applications/provider-state.test.ts && tsx src/components/applications/snapshots.test.tsx && tsx src/lib/jobs/ingestion.test.ts && tsx src/lib/jobs/persistence.test.ts && tsx src/components/jobs/job-review.test.tsx",
+    "check": "npm test && npm run typecheck && npm run lint && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

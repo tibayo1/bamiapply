@@ -19,7 +19,7 @@ import { Button, buttonVariants } from "@/components/ui/Button";
 import type { Application, ApplicationFilter, ApplicationSort } from "@/types/application";
 
 interface ApplicationsExplorerProps {
-  /** Pass real rows from the database later; mock data is injected by the page. */
+  /** Saved rows from the Applications domain, scoped to the active profile. */
   applications: Application[];
   /** Show only the first N rows and a "View all" link (dashboard). */
   limit?: number;

@@ -6,10 +6,10 @@ import { ArrowRight, Bookmark } from "lucide-react";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { FitBadge } from "@/components/ui/FitBadge";
 import { Button } from "@/components/ui/Button";
-import type { JobAnalysis, JobRequirement } from "@/types/analysis";
+import type { JobAnalysis, JobPosting, JobRequirement } from "@/types/analysis";
 import { useProfile } from "@/lib/profile/context";
+import { useApplications } from "@/lib/applications/context";
 import { buildJobAnalysis } from "@/lib/analysis/mock-engine";
-import { hamiltonJob } from "@/lib/analysis/mock-hamilton";
 import type { OverrideMap } from "@/lib/analysis/overrides";
 import { AnalysisHeader } from "./AnalysisHeader";
 import { AnalysisLoader } from "./AnalysisLoader";
@@ -22,16 +22,29 @@ import { AddEvidenceModal } from "./AddEvidenceModal";
 import { SkipRoleModal } from "./SkipRoleModal";
 
 interface JobAnalysisViewProps {
-  initialAnalysis: JobAnalysis;
+  job: JobPosting;
   simulateLoadingOnMount?: boolean;
 }
 
 export function JobAnalysisView({
-  initialAnalysis,
+  job,
   simulateLoadingOnMount = false,
 }: JobAnalysisViewProps) {
   const router = useRouter();
-  const { profile, isHydrated } = useProfile();
+  const {
+    profile,
+    isHydrated: isProfileHydrated,
+    canPersist: canPersistProfile,
+    persistenceIssue: profilePersistenceIssue,
+  } = useProfile();
+  const {
+    isHydrated: areApplicationsHydrated,
+    canPersist: canPersistApplications,
+    persistenceIssue: applicationsPersistenceIssue,
+    saveApplication,
+    changeStatus,
+    getApplicationForJob,
+  } = useApplications();
 
   // Simulated loading state
   const [loading, setLoading] = useState(simulateLoadingOnMount);
@@ -39,24 +52,30 @@ export function JobAnalysisView({
   // Local interactive what-if overrides (does not corrupt profile)
   const [overrides, setOverrides] = useState<OverrideMap>({});
 
-  // Save / skip state
-  const [isSaved, setIsSaved] = useState(false);
-  const [isSkipped, setIsSkipped] = useState(false);
-  const [skipReason, setSkipReason] = useState<string | null>(null);
+  // Application status belongs to the persisted Applications domain.
+  const application = getApplicationForJob(job.id, profile.id);
+  const isSaved = application !== undefined;
+  const isSkipped = application?.status === "Skipped";
+  const skipReason = application?.skipReason;
+  const actionsDisabled = !isProfileHydrated || !areApplicationsHydrated ||
+    !canPersistProfile || !canPersistApplications;
+  const [actionError, setActionError] = useState<string | null>(null);
+  const hasOverrides = Object.keys(overrides).length > 0;
+  const persistenceError = profilePersistenceIssue || applicationsPersistenceIssue;
 
   // Modal states
   const [addEvidenceModalOpen, setAddEvidenceModalOpen] = useState(false);
   const [selectedReq, setSelectedReq] = useState<JobRequirement | null>(null);
   const [skipModalOpen, setSkipModalOpen] = useState(false);
 
-  // Derive dynamic analysis from active profile + overrides
-  const analysis: JobAnalysis = isHydrated
-    ? buildJobAnalysis({
-        profile,
-        job: hamiltonJob,
-        overrides,
-      })
-    : initialAnalysis;
+  // Keep the actual eligibility assessment visible even during what-if edits.
+  const baselineAnalysis = buildJobAnalysis({ profile, job });
+  const analysis: JobAnalysis = hasOverrides
+    ? buildJobAnalysis({ profile, job, overrides })
+    : baselineAnalysis;
+  const hasBaselineHardBlocker = baselineAnalysis.criticalIssues.some(
+    (issue) => issue.status === "unmet" && issue.isHardBlocker
+  );
 
   // Handlers for critical issue resolutions
   function handleCriticalResolve(
@@ -88,21 +107,50 @@ export function JobAnalysisView({
   }
 
   function handleBuildApplication() {
-    // Mock transition into the applications pipeline
-    router.push("/applications/app-001");
+    if (actionsDisabled) return;
+    const result = saveApplication(job, profile, { status: "Preparing" });
+    setActionError(result.error);
+    if (result.error || !result.id) return;
+    router.push(`/applications/${encodeURIComponent(result.id)}`);
+  }
+
+  function handleSaveForLater() {
+    if (actionsDisabled) return;
+    const result = saveApplication(job, profile, { status: "Saved" });
+    setActionError(result.error);
   }
 
   function handleConfirmSkip(reason: string) {
-    setIsSkipped(true);
-    setSkipReason(reason);
+    if (actionsDisabled) return;
+    const result = application
+      ? changeStatus(application.id, "Skipped", reason)
+      : saveApplication(job, profile, { status: "Skipped", reason });
+    setActionError(result.error);
+  }
+
+  function handleUndoSkip() {
+    if (actionsDisabled || !application) return;
+    const result = changeStatus(application.id, "Saved");
+    setActionError(result.error);
+  }
+
+  // Match the server and first client render until browser Profile data is ready.
+  if (!isProfileHydrated) {
+    return (
+      <PageContainer width="wide">
+        <p role="status" className="text-body text-ink-secondary">
+          Loading your Career Profile before analysing this role…
+        </p>
+      </PageContainer>
+    );
   }
 
   if (loading) {
     return (
       <PageContainer width="wide">
         <AnalysisLoader
-          role={initialAnalysis.role}
-          company={initialAnalysis.company}
+          role={job.role}
+          company={job.company}
           onComplete={() => setLoading(false)}
         />
       </PageContainer>
@@ -115,10 +163,41 @@ export function JobAnalysisView({
       <AnalysisHeader
         analysis={analysis}
         onBuildApplication={handleBuildApplication}
-        onSaveForLater={() => setIsSaved(!isSaved)}
+        onSaveForLater={handleSaveForLater}
         onSkipRole={() => setSkipModalOpen(true)}
-        isSaved={isSaved}
+        applicationStatus={application?.status}
+        actionsDisabled={actionsDisabled}
       />
+
+      {!isProfileHydrated || !areApplicationsHydrated ? (
+        <p role="status" className="text-meta text-ink-secondary">
+          Loading your profile and saved applications…
+        </p>
+      ) : actionsDisabled && !persistenceError ? (
+        <p role="alert" className="rounded-xl border border-warning p-4 text-meta text-warning">
+          Saving is unavailable. Check your Career Profile and Applications for recovery options.
+        </p>
+      ) : null}
+
+      {(actionError || persistenceError) && (
+        <p role="alert" className="rounded-xl border border-warning p-4 text-meta text-warning">
+          {actionError || persistenceError}
+        </p>
+      )}
+
+      {hasOverrides && (
+        <p role="status" className="rounded-xl border border-line bg-inset p-4 text-meta text-ink-secondary">
+          This view includes your what-if changes. Saved applications use the baseline analysis
+          from your verified Career Profile; these temporary changes and notes are excluded.
+        </p>
+      )}
+
+      {hasBaselineHardBlocker && (
+        <p role="status" className="rounded-xl border border-warning p-4 text-meta text-warning">
+          Your baseline analysis has an unmet eligibility requirement. You can track this role
+          and open its preparation workspace; resolve the requirement before applying.
+        </p>
+      )}
 
       {/* Skipped Notice if role was skipped */}
       {isSkipped && (
@@ -128,8 +207,9 @@ export function JobAnalysisView({
           </p>
           <button
             type="button"
-            onClick={() => setIsSkipped(false)}
-            className="text-meta font-medium text-brand hover:underline"
+            onClick={handleUndoSkip}
+            disabled={actionsDisabled}
+            className="text-meta font-medium text-brand hover:underline disabled:opacity-45"
           >
             Undo
           </button>
@@ -248,18 +328,22 @@ export function JobAnalysisView({
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => setIsSaved(!isSaved)}
+              onClick={handleSaveForLater}
+              disabled={actionsDisabled || isSaved}
             >
               <Bookmark className="h-3.5 w-3.5 mr-1" />
-              {isSaved ? "Saved" : "Save for later"}
+              {application ? application.status === "Saved" ? "Saved" : "Tracked" : "Save for later"}
             </Button>
             <Button
               type="button"
               variant="primary"
               size="sm"
               onClick={handleBuildApplication}
+              disabled={actionsDisabled}
             >
-              Build application
+              {application && application.status !== "Saved" && application.status !== "Skipped"
+                ? "Open application"
+                : "Build application"}
               <ArrowRight className="h-3.5 w-3.5 ml-1" />
             </Button>
           </div>

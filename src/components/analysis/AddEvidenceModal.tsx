@@ -39,10 +39,10 @@ export function AddEvidenceModal({
           <div className="flex items-start justify-between">
             <div>
               <span className="font-mono text-micro font-semibold uppercase tracking-wider text-brand">
-                / ADD PROFILE EVIDENCE
+                / WHAT-IF ASSESSMENT
               </span>
               <Dialog.Title className="mt-1 text-heading font-semibold text-ink">
-                Confirm experience for {requirement.label}
+                Assess self-reported experience for {requirement.label}
               </Dialog.Title>
             </div>
             <Dialog.Close asChild>
@@ -57,7 +57,10 @@ export function AddEvidenceModal({
           </div>
 
           <Dialog.Description className="mt-2 text-meta text-ink-secondary leading-relaxed">
-            Bámi did not find evidence for this in your Career Profile. If you have relevant work, project, or certification experience, you can confirm it below. This will temporarily recalculate your fit analysis for this opportunity.
+            Use a self-reported override to see how this experience would affect
+            this opportunity&apos;s fit assessment. This note applies only to this
+            analysis and is not saved to your Career Profile. To use it as verified
+            evidence, add and confirm the facts in Career Profile.
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="mt-5 space-y-4">
@@ -89,7 +92,7 @@ export function AddEvidenceModal({
               </Button>
               <Button type="submit" variant="primary" size="md">
                 <Sparkles className="h-4 w-4 mr-1.5" />
-                Confirm experience
+                Apply to this assessment
               </Button>
             </div>
           </form>

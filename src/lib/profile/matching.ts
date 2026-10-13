@@ -96,7 +96,7 @@ export function applyProfileToRequirements(
 
     if (spec.importance === "critical") {
       if (spec.eligibility) {
-        const entry = getWorkAuthorizationForRegions(profile, spec.eligibility.acceptedRegions);
+        const entry = getWorkAuthorizationForRegions(profile, spec.eligibility.acceptedRegions, now);
         const status = workAuthorizationToEligibility(entry, {
           sponsorshipAvailable: spec.eligibility.sponsorshipAvailable,
           now,

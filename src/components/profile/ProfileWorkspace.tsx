@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { useProfile } from "@/lib/profile/context";
 import { SECTIONS, type SectionId } from "@/lib/profile/sections";
 import { getProfileSignals } from "@/lib/profile/selectors";
+import { normalizeProfileRecord } from "@/lib/profile/validation";
 import type {
   PersonalProfile,
   CareerPreferences,
@@ -29,6 +30,7 @@ import type {
   AchievementRecord,
   CareerStory,
   WorkAuthorization,
+  ProfileCollection,
 } from "@/types/profile";
 
 // Sections
@@ -86,7 +88,8 @@ const SECTION_ICONS: Record<SectionId, React.ComponentType<{ className?: string 
 };
 
 export function ProfileWorkspace() {
-  const { profile, dispatch } = useProfile();
+  const { profile, dispatch, canPersist, persistenceIssue, retryPersistence, getProfileRecoveryData, getProfileExportData } = useProfile();
+  const [formError, setFormError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>("overview");
   const [importOpen, setImportOpen] = useState(false);
   const [drawer, setDrawer] = useState<DrawerState>({
@@ -121,10 +124,12 @@ export function ProfileWorkspace() {
   };
 
   const openAddDrawer = (type: DrawerType) => {
+    setFormError(null);
     setDrawer({ open: true, type, record: undefined });
   };
 
   const openEditDrawer = (type: DrawerType, record: unknown) => {
+    setFormError(null);
     setDrawer({ open: true, type, record });
   };
 
@@ -133,6 +138,7 @@ export function ProfileWorkspace() {
   };
 
   const handleResetProfile = () => {
+    if (!canPersist) return;
     if (
       window.confirm(
         "Reset your career profile back to the baseline demo data? Any unsaved edits will be lost."
@@ -142,118 +148,40 @@ export function ProfileWorkspace() {
     }
   };
 
-  // Drawer Form Submission handler
+  const downloadProfileData = (data: string, filename: string) => {
+    const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSaveForm = (data: unknown) => {
-    const { type, record } = drawer;
-    const existingId = (record as { id?: string } | undefined)?.id;
-
-    switch (type) {
-      case "personal":
-        dispatch({
-          type: "UPDATE_PERSONAL",
-          personal: data as Partial<PersonalProfile>,
-        });
-        break;
-
-      case "preferences":
-        dispatch({
-          type: "UPDATE_PREFERENCES",
-          preferences: data as Partial<CareerPreferences>,
-        });
-        break;
-
-      case "experience": {
-        const expData = data as Partial<ExperienceRecord>;
-        dispatch({
-          type: "UPSERT_RECORD",
-          collection: "experiences",
-          record: {
-            ...expData,
-            id: existingId || expData.id || `exp-${Date.now()}`,
-          } as ExperienceRecord,
-        });
-        break;
+    const existingId = typeof drawer.record === "object" && drawer.record !== null && "id" in drawer.record
+      && typeof drawer.record.id === "string" ? drawer.record.id : undefined;
+    const collectionByDrawer: Partial<Record<DrawerType, ProfileCollection>> = {
+      experience: "experiences", education: "education", research: "researchProjects",
+      skill: "skills", achievement: "achievements", story: "careerStories", workAuth: "workAuthorizations",
+    };
+    const collection = collectionByDrawer[drawer.type];
+    if (collection) {
+      if (typeof data !== "object" || data === null || Array.isArray(data)) return;
+      const record = normalizeProfileRecord(collection, {
+        ...data,
+        id: existingId ?? `${collection}-${crypto.randomUUID()}`,
+      });
+      if (!record) {
+        setFormError("This record could not be saved. Check the required fields and evidence entries.");
+        return;
       }
-
-      case "education": {
-        const eduData = data as Partial<EducationRecord>;
-        dispatch({
-          type: "UPSERT_RECORD",
-          collection: "education",
-          record: {
-            ...eduData,
-            id: existingId || eduData.id || `edu-${Date.now()}`,
-          } as EducationRecord,
-        });
-        break;
-      }
-
-      case "research": {
-        const projData = data as Partial<ResearchProjectRecord>;
-        dispatch({
-          type: "UPSERT_RECORD",
-          collection: "researchProjects",
-          record: {
-            ...projData,
-            id: existingId || projData.id || `proj-${Date.now()}`,
-          } as ResearchProjectRecord,
-        });
-        break;
-      }
-
-      case "skill": {
-        const skillData = data as Partial<SkillRecord>;
-        dispatch({
-          type: "UPSERT_RECORD",
-          collection: "skills",
-          record: {
-            ...skillData,
-            id: existingId || skillData.id || `skill-${Date.now()}`,
-          } as SkillRecord,
-        });
-        break;
-      }
-
-      case "achievement": {
-        const achData = data as Partial<AchievementRecord>;
-        dispatch({
-          type: "UPSERT_RECORD",
-          collection: "achievements",
-          record: {
-            ...achData,
-            id: existingId || achData.id || `ach-${Date.now()}`,
-          } as AchievementRecord,
-        });
-        break;
-      }
-
-      case "story": {
-        const storyData = data as Partial<CareerStory>;
-        dispatch({
-          type: "UPSERT_RECORD",
-          collection: "careerStories",
-          record: {
-            ...storyData,
-            id: existingId || storyData.id || `story-${Date.now()}`,
-          } as CareerStory,
-        });
-        break;
-      }
-
-      case "workAuth": {
-        const authData = data as Partial<WorkAuthorization>;
-        dispatch({
-          type: "UPSERT_RECORD",
-          collection: "workAuthorizations",
-          record: {
-            ...authData,
-            id: existingId || authData.id || `auth-${Date.now()}`,
-          } as WorkAuthorization,
-        });
-        break;
-      }
+      dispatch({ type: "UPSERT_RECORD", collection, record });
+    } else if (drawer.type === "personal") {
+      dispatch({ type: "UPDATE_PERSONAL", personal: data as Partial<PersonalProfile> });
+    } else if (drawer.type === "preferences") {
+      dispatch({ type: "UPDATE_PREFERENCES", preferences: data as Partial<CareerPreferences> });
     }
-
+    setFormError(null);
     closeDrawer();
   };
 
@@ -354,6 +282,7 @@ export function ProfileWorkspace() {
             variant="secondary"
             size="sm"
             onClick={handleResetProfile}
+            disabled={!canPersist}
             title="Reset profile to baseline demo data"
           >
             <RotateCcw className="h-4 w-4 mr-1 text-ink-muted" />
@@ -361,6 +290,24 @@ export function ProfileWorkspace() {
           </Button>
         </div>
       </div>
+
+      {persistenceIssue && (
+        <div role="status" className="rounded-lg border border-warning-line bg-warning-subtle p-4 text-meta text-ink">
+          <p>{persistenceIssue}</p>
+          <p className="mt-1">Saving is paused. Download your saved backup to preserve existing data, and export current changes before leaving this tab.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => downloadProfileData(getProfileRecoveryData(), "bami-profile-backup.json")}>
+              Download saved backup
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => downloadProfileData(getProfileExportData(), "bami-profile-current.json")}>
+              Export current changes
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={retryPersistence}>
+              Retry saving
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── MOBILE HORIZONTAL TAB RAIL ──────────────────────────────────────── */}
       <div className="flex lg:hidden overflow-x-auto no-scrollbar gap-2 pb-2 border-b border-line">
@@ -685,6 +632,7 @@ export function ProfileWorkspace() {
         description={drawerConfig.description}
         formId={drawerConfig.formId}
       >
+        {formError && <p role="alert" className="mb-4 text-meta text-danger">{formError}</p>}
         {drawer.type === "personal" && (
           <PersonalForm
             initial={(drawer.record as PersonalProfile) || profile.personal}

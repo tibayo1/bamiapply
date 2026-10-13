@@ -1,16 +1,13 @@
 import { CheckCircle2 } from "lucide-react";
 import type { JobRequirement } from "@/types/analysis";
+import { getVerifiedCoreStrengths } from "@/lib/analysis/presentation";
 
 interface StrengthsSectionProps {
   requirements: JobRequirement[];
 }
 
 export function StrengthsSection({ requirements }: StrengthsSectionProps) {
-  const strongCore = requirements.filter(
-    (r) =>
-      r.importance === "core" &&
-      (r.evidenceStrength === "strong" || r.userOverride?.confirmed)
-  );
+  const strongCore = getVerifiedCoreStrengths(requirements);
 
   if (strongCore.length === 0) return null;
 
@@ -32,8 +29,7 @@ export function StrengthsSection({ requirements }: StrengthsSectionProps) {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {strongCore.map((req) => {
-          const evidence = req.evidence?.[0];
+        {strongCore.map(({ requirement: req, evidence }) => {
           return (
             <div
               key={req.id}

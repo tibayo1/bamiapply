@@ -1,0 +1,3 @@
+# Cloud Build source uploads must omit the same local and secret files as Docker.
+#!include:.dockerignore
+.gcloudignore

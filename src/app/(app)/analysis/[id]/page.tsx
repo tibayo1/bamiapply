@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import { buildJobAnalysis } from "@/lib/analysis/mock-engine";
-import { hamiltonJob } from "@/lib/analysis/mock-hamilton";
-import { createDemoProfile } from "@/lib/profile/mock-profile";
-import { JobAnalysisView } from "@/components/analysis/JobAnalysisView";
+import { JobAnalysisRoute } from "@/components/jobs/JobAnalysisRoute";
 
 export const metadata: Metadata = {
   title: "Job Analysis",
@@ -18,17 +15,7 @@ export default async function JobAnalysisPage({ params, searchParams }: PageProp
   const sp = await searchParams;
   const shouldSimulate = sp.simulate === "true";
 
-  // Build the analysis deterministically from demo baseline
-  const demoProfile = createDemoProfile();
-  const analysis = buildJobAnalysis({
-    profile: demoProfile,
-    job: { ...hamiltonJob, id },
-  });
-
   return (
-    <JobAnalysisView
-      initialAnalysis={analysis}
-      simulateLoadingOnMount={shouldSimulate}
-    />
+    <JobAnalysisRoute id={id} shouldSimulate={shouldSimulate} />
   );
 }

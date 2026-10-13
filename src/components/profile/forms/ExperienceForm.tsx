@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import type { ExperienceRecord, ProfileClaim, VerificationStatus } from "@/types/profile";
-import { ListEditor } from "./ListEditor";
+import { ClaimEditor } from "./ClaimEditor";
+import { buildExperienceFormValue } from "./claim-editing";
 
 interface ExperienceFormProps {
   initial?: Partial<ExperienceRecord>;
@@ -22,30 +23,15 @@ export function ExperienceForm({ initial, onSubmit, formId = "experience-form" }
     initial?.verificationStatus || "verified"
   );
 
-  // Responsibilities as strings
-  const [responsibilities, setResponsibilities] = useState<string[]>(
-    initial?.responsibilities?.map((r) => r.text) || []
+  const [responsibilities, setResponsibilities] = useState<ProfileClaim[]>(
+    initial?.responsibilities || []
   );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !organization.trim()) return;
 
-    // Convert responsibility strings back to ProfileClaims
-    const existingClaims = initial?.responsibilities || [];
-    const claims: ProfileClaim[] = responsibilities.map((text, idx) => {
-      const existing = existingClaims[idx];
-      return {
-        id: existing?.id || `claim-exp-${Date.now()}-${idx}`,
-        text,
-        verificationStatus,
-        source: existing?.source || "user",
-        sourceRecordId: initial?.id,
-      };
-    });
-
-    onSubmit({
-      ...initial,
+    onSubmit(buildExperienceFormValue(initial, {
       title: title.trim(),
       organization: organization.trim(),
       location: location.trim() || undefined,
@@ -53,10 +39,9 @@ export function ExperienceForm({ initial, onSubmit, formId = "experience-form" }
       endDate: isCurrent ? undefined : endDate.trim() || undefined,
       isCurrent,
       summary: summary.trim() || undefined,
-      responsibilities: claims,
+      responsibilities,
       verificationStatus,
-      source: initial?.source || "user",
-    });
+    }));
   };
 
   return (
@@ -164,18 +149,19 @@ export function ExperienceForm({ initial, onSubmit, formId = "experience-form" }
         />
       </div>
 
-      <ListEditor
+      <ClaimEditor
         label="Responsibilities & Factual Claims"
         description="Add key responsibilities and verifiable statements. Capture facts first."
         placeholder="e.g. Maintained biomedical monitoring systems..."
-        items={responsibilities}
+        claims={responsibilities}
         onChange={setResponsibilities}
+        sourceRecordId={initial?.id}
         addButtonLabel="Add responsibility"
       />
 
       <div>
         <label htmlFor="exp-status" className="block text-meta font-medium text-ink">
-          Verification Status
+          Record Verification Status
         </label>
         <select
           id="exp-status"
@@ -188,7 +174,8 @@ export function ExperienceForm({ initial, onSubmit, formId = "experience-form" }
           <option value="draft">Draft (Work in progress)</option>
         </select>
         <p className="mt-1 text-micro text-ink-muted">
-          Only verified records are presented as proof during job analysis and application tailoring.
+          Evidence requires both the record and its claim to be verified. This status does not
+          confirm individual claims.
         </p>
       </div>
     </form>

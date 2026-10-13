@@ -21,7 +21,7 @@ export function getMockCvExtractionFixture(): StagedCvImport {
     experiences: [
       {
         id: "imp-exp-kadir-has",
-        title: "PhD Researcher", // Deliberately overlaps with existing "Doctoral Researcher" at Kadir Has University
+        title: "Doctoral Researcher", // Same employer and role as the existing record.
         organization: "Kadir Has University",
         location: "Istanbul, Türkiye",
         startDate: "2022",

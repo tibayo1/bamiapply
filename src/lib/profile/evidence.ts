@@ -64,7 +64,7 @@ export function isUsableEvidence(status: VerificationStatus): boolean {
 }
 
 export function linkKey(link: EvidenceLink): string {
-  return `${link.recordType}:${link.recordId}:${link.claimId ?? ""}`;
+  return JSON.stringify([link.recordType, link.recordId, link.claimId ?? null]);
 }
 
 export function evidenceHref(link: EvidenceLink): string {

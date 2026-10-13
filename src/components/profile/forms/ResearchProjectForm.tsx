@@ -8,6 +8,8 @@ import type {
   VerificationStatus,
 } from "@/types/profile";
 import { ListEditor } from "./ListEditor";
+import { ClaimEditor } from "./ClaimEditor";
+import { buildResearchProjectFormValue } from "./claim-editing";
 
 interface ResearchProjectFormProps {
   initial?: Partial<ResearchProjectRecord>;
@@ -30,8 +32,8 @@ export function ResearchProjectForm({
   const [technologies, setTechnologies] = useState<string[]>(
     initial?.technologies || []
   );
-  const [outcomes, setOutcomes] = useState<string[]>(
-    initial?.outcomes?.map((o) => o.text) || []
+  const [outcomes, setOutcomes] = useState<ProfileClaim[]>(
+    initial?.outcomes || []
   );
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>(
     initial?.verificationStatus || "verified"
@@ -41,30 +43,16 @@ export function ResearchProjectForm({
     e.preventDefault();
     if (!title.trim()) return;
 
-    const existingClaims = initial?.outcomes || [];
-    const outcomeClaims: ProfileClaim[] = outcomes.map((text, idx) => {
-      const existing = existingClaims[idx];
-      return {
-        id: existing?.id || `claim-proj-${Date.now()}-${idx}`,
-        text,
-        verificationStatus,
-        source: existing?.source || "user",
-        sourceRecordId: initial?.id,
-      };
-    });
-
-    onSubmit({
-      ...initial,
+    onSubmit(buildResearchProjectFormValue(initial, {
       title: title.trim(),
       projectType,
       organization: organization.trim() || undefined,
       objective: objective.trim() || undefined,
       methods,
       technologies,
-      outcomes: outcomeClaims,
+      outcomes,
       verificationStatus,
-      source: initial?.source || "user",
-    });
+    }));
   };
 
   return (
@@ -151,18 +139,19 @@ export function ResearchProjectForm({
         addButtonLabel="Add technology"
       />
 
-      <ListEditor
-        label="Verified Outcomes & Deliverables"
+      <ClaimEditor
+        label="Outcomes & Deliverables"
         description="Factual statements on what was delivered or discovered."
         placeholder="e.g. Characterized perceptual stiffness discrimination thresholds"
-        items={outcomes}
+        claims={outcomes}
         onChange={setOutcomes}
+        sourceRecordId={initial?.id}
         addButtonLabel="Add outcome"
       />
 
       <div>
         <label htmlFor="proj-status" className="block text-meta font-medium text-ink">
-          Verification Status
+          Record Verification Status
         </label>
         <select
           id="proj-status"
@@ -174,6 +163,10 @@ export function ResearchProjectForm({
           <option value="needs_confirmation">Needs confirmation</option>
           <option value="draft">Draft</option>
         </select>
+        <p className="mt-1 text-micro text-ink-muted">
+          Evidence requires both the record and its claim to be verified. This status does not
+          confirm individual claims.
+        </p>
       </div>
     </form>
   );

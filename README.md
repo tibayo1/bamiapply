@@ -1,36 +1,25 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bámi Apply
 
-## Getting Started
+A Next.js 16 / React 19 / TypeScript career-evidence workspace and deterministic job assessment app.
 
-First, run the development server:
+Use Node.js 20.9 or later. Install the locked dependencies with `npm ci`, then start development with `npm run dev`. The application source lives in `src/app`.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Run `npm run check` for the complete validation workflow: regression tests, generated route types and TypeScript, ESLint, and production build. Individual commands are `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The root layout downloads Google Fonts at compilation time, so builds require access to `fonts.googleapis.com` and `fonts.gstatic.com`. Packages come from `registry.npmjs.org`. The current browser workspace does not require an API key or database.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The Profile domain lives in `src/types/profile.ts` and `src/lib/profile`. Its provider hydrates browser storage; records and claims retain stable IDs, provenance, and independent verification states. Import and storage boundaries validate data. Unsupported or unreadable saved profiles remain untouched, with separate exports for the original backup and current unsaved edits.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The Analysis domain lives in `src/types/analysis.ts` and `src/lib/analysis`. Job requirements resolve verified Profile evidence before deterministic scoring. Eligibility gates are evaluated separately. Local what-if overrides do not change the Profile or create verified proof points.
 
-## Learn More
+The Applications domain lives in `src/types/application.ts` and `src/lib/applications`. Its independent provider saves versioned browser-local records under `bami.applications`. Save, prepare, skip/undo, and status updates share the same records across Dashboard, Applications and application detail. Each assessment archives the posting, deterministic baseline scores, confirmed evidence/provenance, and eligibility metadata. What-if overrides and unconfirmed claim wording are excluded. Profile corrections or eligibility expiry require an explicit refresh that appends a snapshot; earlier assessments remain viewable. Corrupt data and conflicting tab writes pause saving and retain backup/export options.
 
-To learn more about Next.js, take a look at the following resources:
+The Jobs domain lives in `src/types/job.ts` and `src/lib/jobs`. Paste a real employer description on Dashboard, review suggested requirements against the preserved source, then explicitly link verified Profile records or claims as direct or adjacent evidence. Suggestions use simple text rules and require user review. Source links are retained as references; remote URLs are not scraped. A reviewed job is independently persisted under `bami.jobs`, scoped to the active Profile and immutable once saved. Analysis routes resume those jobs after reload and can fall back to an Application's archived posting. Unknown employer sponsorship remains an unresolved eligibility condition when sponsorship is needed; it never becomes an assumed refusal.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Jobs and Applications start empty rather than with fixture rows. Career Profile currently starts with an editable demonstration profile. CV extraction, authentication, cloud sync, backup restoration and document generation remain future work. Status changes track progress but do not create or submit documents. Browser-local data does not move between devices or website origins; export backups before clearing browser data. The recommended next product milestone is evidence-grounded document preparation with immutable submission snapshots. Before a wider public launch, finish empty-user onboarding, account-based persistence and backup restoration.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+For a Google Cloud preview with an owned `.xyz` domain, see [deployment instructions](docs/deployment.md). `output: "standalone"` and the Dockerfile prepare the app for Cloud Run; they do not deploy it. Build images with the locked dependencies and run the non-root standalone server with Cloud Run's `PORT`. No candidate data should be stored on the container's ephemeral filesystem.
 
-## Deploy on Vercel
+Repository-local Codex guidance from Vercel is installed in `.agents/skills/vercel-composition-patterns` and `.agents/skills/vercel-react-best-practices`, with sources pinned in `skills-lock.json`. These are development instructions, not application runtime dependencies. Apply the relevant provider, persistence, and React guidance while preserving the product invariants below.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Product invariants and contribution guidance are recorded in `AGENTS.md`. Keep candidate facts grounded in confirmed evidence, retain original metrics verbatim, and maintain separate Profile and Application state.

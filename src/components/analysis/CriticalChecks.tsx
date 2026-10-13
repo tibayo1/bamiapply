@@ -32,6 +32,11 @@ export function CriticalChecks({ issues, onResolve }: CriticalChecksProps) {
         </span>
       </div>
 
+      <p className="text-meta text-ink-secondary">
+        Choices below create self-reported what-if overrides for this analysis.
+        They do not update or verify your Career Profile.
+      </p>
+
       <div className="space-y-3">
         {issues.map((issue) => {
           const isSatisfied = issue.status === "satisfied";
@@ -84,13 +89,13 @@ export function CriticalChecks({ issues, onResolve }: CriticalChecksProps) {
                         {isSatisfied
                           ? "Satisfied"
                           : isUnmet
-                          ? "Confirmed Hard Blocker"
+                          ? issue.isHardBlocker ? "Hard blocker" : "Unmet"
                           : "Needs confirmation"}
                       </span>
                     </div>
 
                     <p className="mt-1 text-meta text-ink-secondary leading-relaxed">
-                      {issue.message}
+                      {issue.message.replace(/^Verified:\s*/, "Assessed: ")}
                     </p>
 
                     {issue.confirmationQuestion && (
@@ -105,7 +110,7 @@ export function CriticalChecks({ issues, onResolve }: CriticalChecksProps) {
               {/* Interactive choice actions */}
               <div className="mt-4 pt-3 border-t border-line/60 flex flex-wrap items-center gap-2">
                 <span className="text-micro font-mono uppercase text-ink-muted mr-1">
-                  Your status:
+                  Assess as:
                 </span>
                 <button
                   type="button"
@@ -117,7 +122,7 @@ export function CriticalChecks({ issues, onResolve }: CriticalChecksProps) {
                       : "bg-surface border border-line text-ink hover:border-success hover:text-success"
                   )}
                 >
-                  I have authorization
+                  {issue.category === "work_authorization" ? "I have authorization" : "I meet this requirement"}
                 </button>
 
                 <button
@@ -130,7 +135,7 @@ export function CriticalChecks({ issues, onResolve }: CriticalChecksProps) {
                       : "bg-surface border border-line text-ink hover:border-danger hover:text-danger"
                   )}
                 >
-                  I need sponsorship
+                  {issue.category === "work_authorization" ? "I need sponsorship" : "I do not meet this requirement"}
                 </button>
 
                 <button
@@ -152,10 +157,11 @@ export function CriticalChecks({ issues, onResolve }: CriticalChecksProps) {
                 <div className="mt-3 rounded-lg bg-surface/80 p-3 border border-danger-line/60 text-meta text-danger">
                   <p className="font-semibold flex items-center gap-1.5">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
-                    Recommendation updated to Skip
+                    Eligibility assessed as unmet
                   </p>
                   <p className="mt-0.5 text-xs text-ink-secondary">
-                    Because this role does not offer visa sponsorship, applying would likely result in an automatic filtering rejection.
+                    Eligibility gates are evaluated separately from your fit score.
+                    Confirm the underlying facts in Career Profile before applying.
                   </p>
                 </div>
               )}
@@ -163,7 +169,7 @@ export function CriticalChecks({ issues, onResolve }: CriticalChecksProps) {
               {isSatisfied && (
                 <div className="mt-3 rounded-lg bg-surface/80 p-2.5 border border-success-line/60 text-meta text-success flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Verified: Non-negotiable eligibility confirmed. Recommendation updated.</span>
+                  <span>Eligibility assessed as satisfied for this analysis.</span>
                 </div>
               )}
             </div>

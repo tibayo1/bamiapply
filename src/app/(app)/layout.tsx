@@ -5,6 +5,10 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 
 import { ProfileProvider } from "@/lib/profile/context";
+import { ApplicationsProvider } from "@/lib/applications/context";
+import { ApplicationsPersistenceNotice } from "@/components/applications/ApplicationsPersistenceNotice";
+import { JobsProvider } from "@/lib/jobs/context";
+import { JobsPersistenceNotice } from "@/components/jobs/JobsPersistenceNotice";
 
 /**
  * Authenticated shell. Wraps everything under (app)/.
@@ -13,6 +17,8 @@ import { ProfileProvider } from "@/lib/profile/context";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ProfileProvider>
+    <JobsProvider>
+    <ApplicationsProvider>
       <TooltipProvider>
         <SidebarProvider>
         <a
@@ -27,12 +33,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex min-w-0 flex-1 flex-col">
             <AppHeader />
             <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
+              <div className="mx-auto max-w-wide px-4 pt-4 sm:px-8"><JobsPersistenceNotice /><ApplicationsPersistenceNotice /></div>
               {children}
             </main>
           </div>
         </div>
       </SidebarProvider>
     </TooltipProvider>
+    </ApplicationsProvider>
+    </JobsProvider>
     </ProfileProvider>
   );
 }
